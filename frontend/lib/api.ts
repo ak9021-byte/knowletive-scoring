@@ -27,3 +27,6 @@ export const giveReward = (data: any) =>
 export const getStudentRewards = (studentId: number) =>
   API.get(`/students/rewards/student/${studentId}`)
 export const getAllRewards = () => API.get("/students/rewards/all")
+
+export const getWeeklyLeaderboard = () => API.get("/scores/leaderboard/weekly")
+export const getMonthlyLeaderboard = () => API.get("/scores/leaderboard/monthly")

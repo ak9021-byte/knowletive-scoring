@@ -6,7 +6,8 @@ from app.models.student import Student
 from app.models.reward import Reward
 from app.schemas.score import ScoreCreate, ScoreResponse
 from typing import List
-from datetime import date
+from datetime import date, timedelta
+from sqlalchemy import func
 
 router = APIRouter(prefix="/scores", tags=["Scores"])
 
@@ -143,6 +144,68 @@ def my_scores(student_id: int, db: Session = Depends(get_db)):
     scores = (
         db.query(Score)
         .filter(Score.student_id == student_id)
+        .order_by(Score.date.desc())
+        .all()
+    )
+    return scores
+
+from datetime import date, timedelta
+
+@router.get("/leaderboard/weekly", response_model=List[dict])
+def weekly_leaderboard(db: Session = Depends(get_db)):
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    results = (
+        db.query(Student.name,
+            func.sum(Score.attendance).label("attendance"),
+            func.sum(Score.speak_up).label("speak_up"),
+            func.sum(Score.activity).label("activity"),
+            func.sum(Score.technical).label("technical"),
+            func.sum(Score.behavior).label("behavior"),
+            func.sum(Score.initiative).label("initiative"),
+            func.sum(Score.total).label("total")
+        )
+        .join(Score, Score.student_id == Student.id)
+        .filter(Score.date >= week_start, Score.date <= today, Score.total > 0)
+        .group_by(Student.name)
+        .order_by(func.sum(Score.total).desc())
+        .limit(10)
+        .all()
+    )
+    return [{"name": r.name, "total": r.total, "rank": i+1}
+            for i, r in enumerate(results)]
+
+@router.get("/leaderboard/monthly", response_model=List[dict])
+def monthly_leaderboard(db: Session = Depends(get_db)):
+    today = date.today()
+    month_start = today.replace(day=1)
+    results = (
+        db.query(Student.name,
+            func.sum(Score.total).label("total")
+        )
+        .join(Score, Score.student_id == Student.id)
+        .filter(Score.date >= month_start, Score.date <= today, Score.total > 0)
+        .group_by(Student.name)
+        .order_by(func.sum(Score.total).desc())
+        .limit(10)
+        .all()
+    )
+    return [{"name": r.name, "total": r.total, "rank": i+1}
+            for i, r in enumerate(results)]
+
+@router.get("/scores/range/{student_id}")
+def scores_by_range(student_id: int, range: str = "daily", db: Session = Depends(get_db)):
+    today = date.today()
+    if range == "weekly":
+        start = today - timedelta(days=today.weekday())
+    elif range == "monthly":
+        start = today.replace(day=1)
+    else:
+        start = today
+
+    scores = (
+        db.query(Score)
+        .filter(Score.student_id == student_id, Score.date >= start, Score.total > 0)
         .order_by(Score.date.desc())
         .all()
     )
