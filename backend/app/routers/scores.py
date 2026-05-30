@@ -149,8 +149,6 @@ def my_scores(student_id: int, db: Session = Depends(get_db)):
     )
     return scores
 
-from datetime import date, timedelta
-
 @router.get("/leaderboard/weekly", response_model=List[dict])
 def weekly_leaderboard(db: Session = Depends(get_db)):
     today = date.today()
