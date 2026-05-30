@@ -44,7 +44,7 @@ def submit_score(payload: ScoreCreate, db: Session = Depends(get_db)):
         existing = db.query(Score).filter(
             Score.student_id == payload.student_id,
             Score.date == payload.date,
-            Score.score_type == payload.score_type  # ✅ check per type
+            Score.score_type == payload.score_type
         ).first()
         if existing and existing.total > 0:
             raise HTTPException(
@@ -65,8 +65,6 @@ def submit_score(payload: ScoreCreate, db: Session = Depends(get_db)):
 
     if not is_suggestion:
         update_student_level(payload.student_id, db)
-
-        # Auto save Student of the Day (only for daily scores)
         if payload.score_type == "daily":
             today = date.today()
             top = (
@@ -97,34 +95,20 @@ def submit_score(payload: ScoreCreate, db: Session = Depends(get_db)):
     return score
 
 
+# ✅ ALL fixed routes BEFORE {student_id} routes
 @router.get("/leaderboard/today", response_model=List[dict])
 def today_leaderboard(db: Session = Depends(get_db)):
     today = date.today()
     results = (
         db.query(Student.name, Score.total)
         .join(Score, Score.student_id == Student.id)
-        .filter(Score.date == today, Score.total > 0, Score.score_type == "daily")  # ✅
+        .filter(Score.date == today, Score.total > 0, Score.score_type == "daily")
         .order_by(Score.total.desc())
         .limit(10)
         .all()
     )
     return [{"name": r.name, "total": r.total, "rank": i + 1}
             for i, r in enumerate(results)]
-
-
-@router.get("/student-of-the-day")
-def student_of_the_day(db: Session = Depends(get_db)):
-    today = date.today()
-    result = (
-        db.query(Student.name, Score.total)
-        .join(Score, Score.student_id == Student.id)
-        .filter(Score.date == today, Score.score_type == "daily")  # ✅
-        .order_by(Score.total.desc())
-        .first()
-    )
-    if not result:
-        raise HTTPException(status_code=404, detail="No scores today")
-    return {"student_of_the_day": result.name, "score": result.total}
 
 
 @router.get("/leaderboard/weekly", response_model=List[dict])
@@ -138,7 +122,7 @@ def weekly_leaderboard(db: Session = Depends(get_db)):
             Score.date >= week_start,
             Score.date <= today,
             Score.total > 0,
-            Score.score_type == "weekly"  # ✅
+            Score.score_type == "weekly"
         )
         .group_by(Student.name)
         .order_by(func.sum(Score.total).desc())
@@ -160,7 +144,7 @@ def monthly_leaderboard(db: Session = Depends(get_db)):
             Score.date >= month_start,
             Score.date <= today,
             Score.total > 0,
-            Score.score_type == "monthly"  # ✅
+            Score.score_type == "monthly"
         )
         .group_by(Student.name)
         .order_by(func.sum(Score.total).desc())
@@ -171,6 +155,28 @@ def monthly_leaderboard(db: Session = Depends(get_db)):
             for i, r in enumerate(results)]
 
 
+@router.get("/student-of-the-day")
+def student_of_the_day(db: Session = Depends(get_db)):
+    today = date.today()
+    result = (
+        db.query(Student.name, Score.total)
+        .join(Score, Score.student_id == Student.id)
+        .filter(Score.date == today, Score.score_type == "daily")
+        .order_by(Score.total.desc())
+        .first()
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="No scores today")
+    return {"student_of_the_day": result.name, "score": result.total}
+
+
+@router.get("/debug")
+def debug(db: Session = Depends(get_db)):
+    results = db.execute(text("SELECT id, score_type FROM daily_scores")).fetchall()
+    return [{"id": r[0], "score_type": r[1]} for r in results]
+
+
+# ✅ {student_id} routes LAST
 @router.get("/weekly/{student_id}")
 def weekly_scores(student_id: int, db: Session = Depends(get_db)):
     scores = (
@@ -210,8 +216,3 @@ def scores_by_range(student_id: int, range: str = "daily", db: Session = Depends
         .all()
     )
     return scores
-
-@router.get("/debug")
-def debug(db: Session = Depends(get_db)):
-    results = db.execute(text("SELECT id, score_type FROM daily_scores")).fetchall()
-    return [{"id": r[0], "score_type": r[1]} for r in results]
