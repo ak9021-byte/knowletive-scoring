@@ -20,3 +20,4 @@ class Score(Base):
     suggestion  = Column(Text, nullable=True)
 
     student = relationship("Student", back_populates="scores")
+    score_type = Column(String, default="daily")  # "daily", "weekly", "monthly"
