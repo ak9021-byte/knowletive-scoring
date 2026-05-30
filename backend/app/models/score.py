@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, Date, ForeignKey, Text
+from sqlalchemy import Column, Integer, Date, ForeignKey, Text, String # ✅ String added
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import date
+
 
 class Score(Base):
     __tablename__ = "daily_scores"
@@ -18,6 +19,6 @@ class Score(Base):
     total       = Column(Integer, default=0)
     rank        = Column(Integer, nullable=True)
     suggestion  = Column(Text, nullable=True)
+    score_type  = Column(String, default="daily")  # ✅ moved above relationship
 
     student = relationship("Student", back_populates="scores")
-    score_type = Column(String, default="daily")  # "daily", "weekly", "monthly"
