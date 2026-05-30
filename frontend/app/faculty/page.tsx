@@ -72,11 +72,12 @@ export default function FacultyPage() {
     } catch { showToast("Error sending feedback!", "error") }
   }
 
-  const scoreOptions: any = {
-    attendance:[0,5,10], speak_up:[0,5,10,15],
-    activity:[0,10,15,20], technical:[0,10,20,30],
-    behavior:[0,5,10], initiative:[0,5,10,15]
+  const scoreMax: any = {
+    attendance: 10, speak_up: 15,
+    activity: 20, technical: 30,
+    behavior: 10, initiative: 15
   }
+
   const labels: any = {
     attendance:{ label:"Attendance", icon:"🟢", max:10, color:"#10b981", bg:"#ecfdf5", border:"#bbf7d0" },
     speak_up:{ label:"Speak Up", icon:"🎤", max:15, color:"#8b5cf6", bg:"#f5f3ff", border:"#ddd6fe" },
@@ -85,7 +86,7 @@ export default function FacultyPage() {
     behavior:{ label:"Behavior", icon:"🤝", max:10, color:"#ec4899", bg:"#fdf2f8", border:"#fbcfe8" },
     initiative:{ label:"Initiative", icon:"🚀", max:15, color:"#6366f1", bg:"#eef2ff", border:"#c7d2fe" },
   }
-  const total = Object.keys(scoreOptions).reduce((sum,k) => sum+Number((scoreForm as any)[k]), 0)
+  const total = Object.keys(scoreMax).reduce((sum,k) => sum+Number((scoreForm as any)[k]), 0)
 
   const handleSubmitScore = async () => {
     if (!scoreForm.student_id) return showToast("Please select a student!", "warning")
@@ -493,23 +494,46 @@ export default function FacultyPage() {
 
                 <div className="sec-label">⚡ Performance metrics</div>
                 <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:28 }}>
-                  {Object.keys(scoreOptions).map(key => {
+                  {Object.keys(scoreMax).map(key => {
                     const m = labels[key]
+                    const val = (scoreForm as any)[key]
+                    const pct = Math.round((val / scoreMax[key]) * 100)
                     return (
-                      <div key={key} className="score-metric" style={{ borderColor:(scoreForm as any)[key]>0?m.border:"var(--border)", background:(scoreForm as any)[key]>0?m.bg:"#fff" }}>
+                      <div key={key} className="score-metric" style={{ borderColor:val>0?m.border:"var(--border)", background:val>0?m.bg:"#fff" }}>
                         <span className="metric-icon">{m.icon}</span>
                         <div style={{ minWidth:110 }}>
                           <div className="metric-name">{m.label}</div>
                           <div className="metric-max">max {m.max} pts</div>
                         </div>
-                        <div className="score-btns">
-                          {scoreOptions[key].map((val:number) => (
-                            <button key={val} onClick={() => setScoreForm({...scoreForm,[key]:val})}
-                              className={`score-btn ${(scoreForm as any)[key]===val?"active":""}`}
-                              style={(scoreForm as any)[key]===val?{ background:m.color, borderColor:m.color }:{}}>
-                              {val}
-                            </button>
-                          ))}
+                        <div style={{ display:"flex", alignItems:"center", gap:10, marginLeft:"auto" }}>
+                          {/* Progress bar */}
+                          <div style={{ width:80, height:6, background:"#f1f5f9", borderRadius:99, overflow:"hidden" }}>
+                            <div style={{ height:"100%", width:`${pct}%`, background:m.color, borderRadius:99, transition:"width 0.3s" }} />
+                          </div>
+                          {/* Number input */}
+                          <div style={{ position:"relative" }}>
+                            <input
+                              type="number"
+                              min={0}
+                              max={m.max}
+                              value={val}
+                              onChange={e => {
+                                let v = parseInt(e.target.value) || 0
+                                if (v < 0) v = 0
+                                if (v > m.max) v = m.max
+                                setScoreForm({...scoreForm, [key]: v})
+                              }}
+                              style={{
+                                width:64, padding:"8px 10px", borderRadius:8,
+                                border:`1.5px solid ${val>0?m.color:"var(--border)"}`,
+                                background:val>0?m.bg:"#fff", color:m.color,
+                                fontWeight:800, fontSize:16, textAlign:"center",
+                                outline:"none", fontFamily:"'Plus Jakarta Sans',sans-serif",
+                                transition:"all 0.2s"
+                              }}
+                            />
+                          </div>
+                          <span style={{ fontSize:12, color:"var(--faint)", minWidth:40 }}>/ {m.max}</span>
                         </div>
                       </div>
                     )
