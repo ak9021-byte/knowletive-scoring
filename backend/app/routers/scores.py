@@ -10,9 +10,36 @@ from datetime import date
 
 router = APIRouter(prefix="/scores", tags=["Scores"])
 
+
+def update_student_level(student_id: int, db: Session):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        return
+
+    latest_score = (
+        db.query(Score)
+        .filter(Score.student_id == student_id, Score.total > 0)
+        .order_by(Score.date.desc())
+        .first()
+    )
+    if not latest_score:
+        return
+
+    total = latest_score.total
+    if total < 50:
+        student.level = "Beginner"
+    elif total < 75:
+        student.level = "Learner"
+    elif total < 90:
+        student.level = "Achiever"
+    else:
+        student.level = "Champion"
+
+    db.commit()
+
+
 @router.post("/", response_model=ScoreResponse)
 def submit_score(payload: ScoreCreate, db: Session = Depends(get_db)):
-    # ✅ Duplicate check — only block if it's a real score (not a suggestion)
     is_suggestion = payload.total == 0 and payload.suggestion is not None
 
     if not is_suggestion:
@@ -37,11 +64,9 @@ def submit_score(payload: ScoreCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(score)
 
-    # ✅ Auto update student level (only for real scores)
     if not is_suggestion:
         update_student_level(payload.student_id, db)
 
-        # ✅ Auto save Student of the Day
         today = date.today()
         top = (
             db.query(Student.name, Score.total, Score.student_id)
@@ -70,6 +95,7 @@ def submit_score(payload: ScoreCreate, db: Session = Depends(get_db)):
 
     return score
 
+
 @router.get("/leaderboard/today", response_model=List[dict])
 def today_leaderboard(db: Session = Depends(get_db)):
     today = date.today()
@@ -81,8 +107,9 @@ def today_leaderboard(db: Session = Depends(get_db)):
         .limit(10)
         .all()
     )
-    return [{"name": r.name, "total": r.total, "rank": i+1}
+    return [{"name": r.name, "total": r.total, "rank": i + 1}
             for i, r in enumerate(results)]
+
 
 @router.get("/student-of-the-day")
 def student_of_the_day(db: Session = Depends(get_db)):
@@ -98,6 +125,7 @@ def student_of_the_day(db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No scores today")
     return {"student_of_the_day": result.name, "score": result.total}
 
+
 @router.get("/weekly/{student_id}")
 def weekly_scores(student_id: int, db: Session = Depends(get_db)):
     scores = (
@@ -108,6 +136,7 @@ def weekly_scores(student_id: int, db: Session = Depends(get_db)):
         .all()
     )
     return scores
+
 
 @router.get("/my-scores/{student_id}")
 def my_scores(student_id: int, db: Session = Depends(get_db)):
