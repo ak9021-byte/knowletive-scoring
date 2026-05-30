@@ -15,9 +15,9 @@ export const studentLogin = (email: string) =>
 // Scores
 export const submitScore = (data: any) => API.post("/scores/", data)
 export const getLeaderboard = () => API.get("/scores/leaderboard/today")
+export const getWeeklyLeaderboard = () => API.get("/scores/leaderboard/weekly")   // ✅ added
+export const getMonthlyLeaderboard = () => API.get("/scores/leaderboard/monthly") // ✅ added
 export const getStudentOfDay = () => API.get("/scores/student-of-the-day")
-export const getWeeklyLeaderboard = () => API.get("/scores/leaderboard/weekly")
-export const getMonthlyLeaderboard = () => API.get("/scores/leaderboard/monthly")
 export const getWeeklyScores = (studentId: number) =>
   API.get(`/scores/weekly/${studentId}`)
 export const getMyScores = (studentId: number) =>
@@ -29,4 +29,3 @@ export const giveReward = (data: any) =>
 export const getStudentRewards = (studentId: number) =>
   API.get(`/students/rewards/student/${studentId}`)
 export const getAllRewards = () => API.get("/students/rewards/all")
-
