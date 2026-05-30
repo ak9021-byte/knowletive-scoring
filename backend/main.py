@@ -11,7 +11,9 @@ Base.metadata.create_all(bind=engine)
 
 try:
     with engine.connect() as conn:
-        conn.execute(text("ALTER TABLE daily_scores ADD COLUMN IF NOT EXISTS suggestion TEXT"))
+        # Add this inside your existing try block in main.py:
+        conn.execute(text("ALTER TABLE daily_scores ADD COLUMN IF NOT EXISTS score_type VARCHAR DEFAULT 'daily'"))
+        conn.execute(text("UPDATE daily_scores SET score_type = 'daily' WHERE score_type IS NULL"))
         conn.commit()
 except:
     pass
