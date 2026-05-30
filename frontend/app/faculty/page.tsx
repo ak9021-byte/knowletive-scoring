@@ -10,7 +10,6 @@ import {
   getWeeklyLeaderboard, getMonthlyLeaderboard
 } from "@/lib/api"
 
-// ─── types ───────────────────────────────────────────────
 type Period = "daily" | "weekly" | "monthly"
 
 const scoreMax: Record<string, number> = {
@@ -46,7 +45,6 @@ const avatarColors = [
   ["#43e97b","#38f9d7"],["#fa709a","#fee140"],["#30cfd0","#667eea"],
 ]
 
-// ─── Period Selector ──────────────────────────────────────
 function PeriodSelector({ active, onChange }: { active: Period; onChange: (p: Period) => void }) {
   const opts: { key: Period; label: string }[] = [
     { key: "daily",   label: "📅 Daily"   },
@@ -69,7 +67,6 @@ function PeriodSelector({ active, onChange }: { active: Period; onChange: (p: Pe
   )
 }
 
-// ─── Score metric row ─────────────────────────────────────
 function MetricRow({ metricKey, form, setForm }: { metricKey: string; form: any; setForm: any }) {
   const m = labels[metricKey]
   const val = form[metricKey]
@@ -107,7 +104,6 @@ function MetricRow({ metricKey, form, setForm }: { metricKey: string; form: any;
   )
 }
 
-// ─── Leaderboard rows ─────────────────────────────────────
 function LeaderboardList({ data, period }: { data: any[]; period: Period }) {
   if (data.length === 0) return (
     <div style={{ textAlign:"center", padding:"48px 24px" }}>
@@ -141,7 +137,6 @@ function LeaderboardList({ data, period }: { data: any[]; period: Period }) {
   )
 }
 
-// ─── Main Component ───────────────────────────────────────
 export default function FacultyPage() {
   const router = useRouter()
   const { toasts, showToast, removeToast } = useToast()
@@ -156,15 +151,13 @@ export default function FacultyPage() {
   const [suggestion, setSuggestion] = useState("")
   const [suggestionStudentId, setSuggestionStudentId] = useState("")
 
-  // Period state — dashboard and score entry are independent
   const [dashPeriod, setDashPeriod] = useState<Period>("daily")
   const [scorePeriod, setScorePeriod] = useState<Period>("daily")
+  const [rewardPeriod, setRewardPeriod] = useState<Period>("daily")  // ✅ new
 
-  // Leaderboard data per context
   const [dashLeaderboard, setDashLeaderboard] = useState<any[]>([])
   const [scoreLeaderboard, setScoreLeaderboard] = useState<any[]>([])
 
-  // Score forms — one per period
   const [dailyForm,   setDailyForm]   = useState(emptyScoreForm())
   const [weeklyForm,  setWeeklyForm]  = useState(emptyScoreForm())
   const [monthlyForm, setMonthlyForm] = useState(emptyScoreForm())
@@ -210,7 +203,7 @@ export default function FacultyPage() {
     if (!form.student_id) return showToast("Please select a student!", "warning")
     const total = Object.keys(scoreMax).reduce((sum, k) => sum + Number((form as any)[k]), 0)
     try {
-      await submitScore({ ...form, student_id: Number(form.student_id), total })
+      await submitScore({ ...form, student_id: Number(form.student_id), total, score_type: period })
       fetchBase()
       fetchLeaderboard(period, "score")
       showToast("Score submitted successfully! 🚀", "success")
@@ -268,7 +261,6 @@ export default function FacultyPage() {
 
   const periodLabel = (p: Period) => p === "daily" ? "Today" : p === "weekly" ? "This Week" : "This Month"
 
-  // Score entry form panel
   const ScoreEntryForm = ({ period }: { period: Period }) => {
     const form = formByPeriod[period]
     const setForm = setFormByPeriod[period]
@@ -290,14 +282,12 @@ export default function FacultyPage() {
             <input className="f-input" type="date" value={form.date} onChange={e => setForm((p: any) => ({ ...p, date: e.target.value }))} />
           </div>
         </div>
-
         <div className="sec-label">⚡ Performance Metrics</div>
         <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:28 }}>
           {Object.keys(scoreMax).map(key => (
             <MetricRow key={key} metricKey={key} form={form} setForm={setForm} />
           ))}
         </div>
-
         <div className="total-box">
           <div>
             <div style={{ fontSize:11, letterSpacing:"1px", textTransform:"uppercase", color:"var(--faint)", fontWeight:700, marginBottom:4 }}>Total Score</div>
@@ -401,7 +391,6 @@ export default function FacultyPage() {
         .reward-row:hover { border-color:var(--border-dark); box-shadow:var(--shadow); }
         .mobile-bar { display:none; }
         .sidebar-visible { display:flex; }
-        /* period info banner */
         .period-banner { display:flex; align-items:center; gap:10px; padding:12px 18px; border-radius:10px; background:#eef0ff; border:1px solid #c7d2fe; margin-bottom:20px; font-size:13px; font-weight:600; color:#4338ca; }
         @media(max-width:768px){
           .sidebar-visible { display:none; }
@@ -422,7 +411,6 @@ export default function FacultyPage() {
 
       <div className="layout">
 
-        {/* ── SIDEBAR ── */}
         <aside className="sidebar sidebar-visible">
           <div className="brand-zone">
             <img src="/logo.png" alt="Knowletive" className="brand-logo" />
@@ -452,13 +440,11 @@ export default function FacultyPage() {
           </div>
         </aside>
 
-        {/* ── MOBILE HEADER ── */}
         <div className="mobile-bar">
           <img src="/logo.png" alt="Knowletive" style={{ height:32, objectFit:"contain" }} />
           <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background:"#f1f5f9", border:"1px solid var(--border)", borderRadius:8, padding:"8px 12px", cursor:"pointer", fontSize:18 }}>☰</button>
         </div>
 
-        {/* ── MOBILE DRAWER ── */}
         {sidebarOpen && (
           <div style={{ position:"fixed", inset:0, zIndex:100, background:"rgba(0,0,0,0.4)", display:"flex" }} onClick={() => setSidebarOpen(false)}>
             <div style={{ width:264, background:"#fff", height:"100%", padding:"80px 12px 24px", boxShadow:"4px 0 24px rgba(0,0,0,0.12)" }} onClick={e => e.stopPropagation()}>
@@ -487,10 +473,7 @@ export default function FacultyPage() {
                   </div>
                 </div>
               </div>
-
               <PeriodSelector active={dashPeriod} onChange={handleDashPeriod} />
-
-              {/* Student of the Day — only on daily */}
               {studentOfDay && dashPeriod === "daily" && (
                 <div className="sod-card fu fu1">
                   <span className="sod-icon">⭐</span>
@@ -505,8 +488,6 @@ export default function FacultyPage() {
                   </div>
                 </div>
               )}
-
-              {/* Stats */}
               <div className="stats-row fu fu2">
                 {[
                   { label:"Total Students",   value:students.length,         icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
@@ -521,8 +502,6 @@ export default function FacultyPage() {
                   </div>
                 ))}
               </div>
-
-              {/* Top performers */}
               <div className="card fu fu3">
                 <div className="sec-label">🏆 {periodLabel(dashPeriod)}'s Top Performers</div>
                 <LeaderboardList data={dashLeaderboard.slice(0,5)} period={dashPeriod} />
@@ -537,20 +516,13 @@ export default function FacultyPage() {
                 <h1 className="page-title">📝 Score Entry</h1>
                 <p className="page-sub">Record student performance — daily, weekly or monthly</p>
               </div>
-
               <PeriodSelector active={scorePeriod} onChange={handleScorePeriod} />
-
-              {/* Info banner */}
               <div className="period-banner fu fu1">
                 {scorePeriod === "daily"   && "📅 Entering today's score — one submission per student per day."}
                 {scorePeriod === "weekly"  && "📆 Entering a weekly score — covers the full current week."}
                 {scorePeriod === "monthly" && "🗓️ Entering a monthly score — covers the full current month."}
               </div>
-
-              {/* Score form — each period keeps its own independent state */}
               <ScoreEntryForm period={scorePeriod} />
-
-              {/* Leaderboard for this period below the form */}
               {scoreLeaderboard.length > 0 && (
                 <div className="card fu fu2" style={{ marginTop:24 }}>
                   <div className="sec-label">📊 {periodLabel(scorePeriod)} Rankings</div>
@@ -620,6 +592,10 @@ export default function FacultyPage() {
                 <h1 className="page-title">🎖️ Rewards & Feedback</h1>
                 <p className="page-sub">Recognise achievements and guide student growth</p>
               </div>
+
+              {/* ✅ Period selector for rewards */}
+              <PeriodSelector active={rewardPeriod} onChange={setRewardPeriod} />
+
               <div className="two-col fu fu1" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:24 }}>
                 {/* Give Award */}
                 <div className="card">
@@ -690,11 +666,11 @@ export default function FacultyPage() {
                 </div>
               </div>
 
-              {/* Recent rewards */}
-              {rewards.length > 0 && (
+              {/* ✅ Filtered rewards by period */}
+              {rewards.filter((r:any) => r.type === rewardPeriod).length > 0 && (
                 <div className="card fu fu2">
-                  <div className="sec-label">🕒 Recent Awards</div>
-                  {rewards.slice(0,10).map((r:any, i:number) => (
+                  <div className="sec-label">🕒 {rewardPeriod.charAt(0).toUpperCase() + rewardPeriod.slice(1)} Awards</div>
+                  {rewards.filter((r:any) => r.type === rewardPeriod).slice(0,10).map((r:any, i:number) => (
                     <div key={i} className="reward-row">
                       <span style={{ fontSize:22 }}>{r.type==="daily"?"⭐":r.type==="weekly"?"🏅":"🏆"}</span>
                       <div style={{ flex:1 }}>
