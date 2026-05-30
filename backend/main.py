@@ -9,7 +9,6 @@ from sqlalchemy import text
 
 Base.metadata.create_all(bind=engine)
 
-# Add suggestion column if not exists
 try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE daily_scores ADD COLUMN IF NOT EXISTS suggestion TEXT"))
@@ -21,7 +20,7 @@ app = FastAPI(title="Knowletive Scoring API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
