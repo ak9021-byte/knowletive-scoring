@@ -40,3 +40,32 @@ export const getStudentStreak = (studentId: number) =>
 
 export const getAllStreaks = () =>
   API.get(`/scores/streaks/all`)
+
+// Google Sheet attendance fetch
+export const fetchAttendanceFromSheet = async (sheetId: string) => {
+  const url = `https://docs.google.com/spreadsheets/d/1BV-Dgl6CwPlv1KrQux9mNoGCA6qouBH9/edit?usp=sharing&ouid=107551391375033821000&rtpof=true&sd=true`
+  const response = await fetch(url)
+  const csv = await response.text()
+  return parseAttendanceCSV(csv)
+}
+
+export const parseAttendanceCSV = (csv: string) => {
+  const lines = csv.split("\n").filter(l => l.trim())
+  const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""))
+
+  const students = lines.slice(1).map(line => {
+    const cols = line.split(",").map(c => c.trim().replace(/"/g, ""))
+    const name = cols[0]
+    const attendance: Record<string, string> = {}
+    headers.slice(1).forEach((day, i) => {
+      attendance[day] = cols[i + 1] || ""
+    })
+    const totalDays = headers.slice(1).length
+    const presentDays = Object.values(attendance).filter(v =>
+      v.toLowerCase() === "p" || v.toLowerCase() === "present" || v === "1"
+    ).length
+    return { name, attendance, totalDays, presentDays, percentage: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0 }
+  }).filter(s => s.name)
+
+  return { headers: headers.slice(1), students }
+}
