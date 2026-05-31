@@ -218,7 +218,7 @@ export default function FacultyPage() {
     if (!form.student_id) return showToast("Please select a student!", "warning")
     const total = Object.keys(scoreMax).reduce((sum, k) => sum + Number((form as any)[k]), 0)
     try {
-      await submitScore({ ...form, student_id: Number(form.student_id), total })
+      await submitScore({ ...form, student_id: Number(form.student_id), total, score_type: period })
       fetchBase(); fetchLeaderboard(period, "score")
       showToast("Score submitted successfully! 🚀", "success")
       setForm(emptyScoreForm())
@@ -254,6 +254,7 @@ export default function FacultyPage() {
         date: new Date().toISOString().split("T")[0],
         attendance:0, speak_up:0, activity:0, technical:0, behavior:0, initiative:0,
         total:0, suggestion,
+        score_type: "daily",
       })
       setSuggestion(""); setSuggestionStudentId("")
       showToast("Feedback sent successfully! 💬", "success")
