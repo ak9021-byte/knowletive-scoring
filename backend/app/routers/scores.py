@@ -302,3 +302,57 @@ def all_students_average(days: int = 7, db: Session = Depends(get_db)):
         "avg_initiative": round(float(r.avg_initiative or 0), 1),
     } for r in results]
 
+    
+@router.get("/streak/{student_id}")
+def get_streak(student_id: int, db: Session = Depends(get_db)):
+    today = date.today()
+    streak = 0
+    check_date = today
+    
+    while True:
+        score = db.query(Score).filter(
+            Score.student_id == student_id,
+            Score.date == check_date,
+            Score.attendance > 0
+        ).first()
+        
+        if not score:
+            break
+            
+        streak += 1
+        check_date = check_date - timedelta(days=1)
+    
+    return {"student_id": student_id, "streak": streak}
+
+@router.get("/streaks/all")
+def get_all_streaks(db: Session = Depends(get_db)):
+    from app.models.student import Student
+    students = db.query(Student).all()
+    result = []
+    
+    for student in students:
+        today = date.today()
+        streak = 0
+        check_date = today
+        
+        while True:
+            score = db.query(Score).filter(
+                Score.student_id == student.id,
+                Score.date == check_date,
+                Score.attendance > 0
+            ).first()
+            
+            if not score:
+                break
+                
+            streak += 1
+            check_date = check_date - timedelta(days=1)
+        
+        result.append({
+            "student_id": student.id,
+            "name": student.name,
+            "streak": streak
+        })
+    
+    return result
+

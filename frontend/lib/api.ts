@@ -34,3 +34,9 @@ export const getAllAverages = (days: number) =>
   API.get(`/scores/averages/all?days=${days}`)
 export const getStudentAverage = (studentId: number, days: number) =>
   API.get(`/scores/average/${studentId}?days=${days}`)
+
+export const getStudentStreak = (studentId: number) =>
+  API.get(`/scores/streak/${studentId}`)
+
+export const getAllStreaks = () =>
+  API.get(`/scores/streaks/all`)

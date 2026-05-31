@@ -8,7 +8,7 @@ import {
   getLeaderboard, getStudentOfDay, submitScore,
   giveReward, getAllRewards,
   getWeeklyLeaderboard, getMonthlyLeaderboard,
-  getAllAverages
+  getAllAverages, getAllStreaks
 } from "@/lib/api"
 
 type Period = "daily" | "weekly" | "monthly"
@@ -45,6 +45,30 @@ const avatarColors = [
   ["#667eea","#764ba2"],["#f093fb","#f5576c"],["#4facfe","#00f2fe"],
   ["#43e97b","#38f9d7"],["#fa709a","#fee140"],["#30cfd0","#667eea"],
 ]
+
+const streakColor = (n: number) =>
+  n >= 14 ? { bg:"#fff1f2", color:"#be123c", border:"#fecdd3" }
+  : n >= 7  ? { bg:"#fff7ed", color:"#c2410c", border:"#fed7aa" }
+  :           { bg:"#fefce8", color:"#b45309", border:"#fde68a" }
+
+function StreakBadge({ streak, size = "sm" }: { streak: number; size?: "sm" | "md" }) {
+  if (streak === 0) return <span style={{ fontSize:11, color:"#94a3b8" }}>No streak yet</span>
+  const c = streakColor(streak)
+  return (
+    <span style={{
+      fontSize: size === "md" ? 12 : 11,
+      fontWeight: 700,
+      background: c.bg,
+      color: c.color,
+      border: `1px solid ${c.border}`,
+      borderRadius: 20,
+      padding: size === "md" ? "4px 12px" : "3px 10px",
+      whiteSpace: "nowrap" as const,
+    }}>
+      🔥 {streak} day{streak !== 1 ? "s" : ""} streak
+    </span>
+  )
+}
 
 function PeriodSelector({ active, onChange }: { active: Period; onChange: (p: Period) => void }) {
   const opts: { key: Period; label: string }[] = [
@@ -105,7 +129,7 @@ function MetricRow({ metricKey, form, setForm }: { metricKey: string; form: any;
   )
 }
 
-function LeaderboardList({ data, period }: { data: any[]; period: Period }) {
+function LeaderboardList({ data, period, streaks = {} }: { data: any[]; period: Period; streaks?: Record<number, number> }) {
   if (data.length === 0) return (
     <div style={{ textAlign:"center", padding:"48px 24px" }}>
       <div style={{ fontSize:48, marginBottom:12 }}>📭</div>
@@ -116,13 +140,21 @@ function LeaderboardList({ data, period }: { data: any[]; period: Period }) {
     <>
       {data.map((e, i) => {
         const t = tierInfo(e.total)
+        const streak = streaks[e.student_id] || 0
         return (
           <div key={i} className="lb-row" style={{
             background: i === 0 ? "linear-gradient(135deg,#fffbeb,#fef9c3)" : "#fff",
             borderColor: i === 0 ? "#fde68a" : "var(--border)",
           }}>
             <span className="lb-rank">{rankEmoji(i)}</span>
-            <span className="lb-name">{e.name}</span>
+            <div style={{ flex:1 }}>
+              <div className="lb-name">{e.name}</div>
+              {streak > 0 && (
+                <div style={{ marginTop:4 }}>
+                  <StreakBadge streak={streak} />
+                </div>
+              )}
+            </div>
             <div className="lb-bar-wrap">
               <div className="lb-bar" style={{ width:`${Math.min((e.total / (period === "daily" ? 100 : 700)) * 100, 100)}%`, background:t.color }} />
             </div>
@@ -159,6 +191,7 @@ export default function FacultyPage() {
   const [dailyForm,   setDailyForm]   = useState(emptyScoreForm())
   const [weeklyForm,  setWeeklyForm]  = useState(emptyScoreForm())
   const [monthlyForm, setMonthlyForm] = useState(emptyScoreForm())
+  const [streaks, setStreaks] = useState<Record<number, number>>({})
 
   // Analytics state
   const [analytics, setAnalytics] = useState<any[]>([])
@@ -176,6 +209,7 @@ export default function FacultyPage() {
     fetchLeaderboard("daily", "dash")
     fetchLeaderboard("daily", "score")
     fetchAnalytics(7)
+    fetchStreaks()
   }, [])
 
   const fetchBase = async () => {
@@ -209,6 +243,15 @@ export default function FacultyPage() {
     setAnalyticsLoading(false)
   }
 
+  const fetchStreaks = async () => {
+    try {
+      const res = await getAllStreaks()
+      const map: Record<number, number> = {}
+      res.data.forEach((s: any) => { map[s.student_id] = s.streak })
+      setStreaks(map)
+    } catch {}
+  }
+
   const handleDashPeriod  = (p: Period) => { setDashPeriod(p);  fetchLeaderboard(p, "dash")  }
   const handleScorePeriod = (p: Period) => { setScorePeriod(p); fetchLeaderboard(p, "score") }
 
@@ -219,7 +262,7 @@ export default function FacultyPage() {
     const total = Object.keys(scoreMax).reduce((sum, k) => sum + Number((form as any)[k]), 0)
     try {
       await submitScore({ ...form, student_id: Number(form.student_id), total, score_type: period })
-      fetchBase(); fetchLeaderboard(period, "score")
+      fetchBase(); fetchLeaderboard(period, "score"); fetchStreaks()
       showToast("Score submitted successfully! 🚀", "success")
       setForm(emptyScoreForm())
     } catch (err: any) {
@@ -273,6 +316,11 @@ export default function FacultyPage() {
   const dashAvg = dashLeaderboard.length > 0
     ? Math.round(dashLeaderboard.reduce((a,b) => a + b.total, 0) / dashLeaderboard.length) : 0
   const periodLabel = (p: Period) => p === "daily" ? "Today" : p === "weekly" ? "This Week" : "This Month"
+
+  // Top streak student
+  const topStreakEntry = Object.entries(streaks).sort((a,b) => b[1] - a[1])[0]
+  const topStreakStudent = topStreakEntry ? students.find(s => s.id === Number(topStreakEntry[0])) : null
+  const topStreakDays = topStreakEntry ? topStreakEntry[1] : 0
 
   const ScoreEntryForm = ({ period }: { period: Period }) => {
     const form    = formByPeriod[period]
@@ -379,11 +427,12 @@ export default function FacultyPage() {
         .sod-tag { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:#b45309; font-weight:700; }
         .sod-name { font-size:22px; font-weight:800; color:#92400e; margin-top:2px; }
         .sod-score { font-size:13px; color:#b45309; margin-top:3px; }
+        .streak-banner { background:linear-gradient(135deg,#fff7ed,#fef3c7); border:1px solid #fed7aa; border-radius:var(--radius); padding:18px 24px; margin-bottom:20px; display:flex; align-items:center; gap:16px; box-shadow:0 4px 16px rgba(234,88,12,0.08); }
         .sec-label { font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--faint); font-weight:700; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border); }
         .lb-row { display:flex; align-items:center; gap:14px; padding:15px 18px; border-radius:12px; border:1px solid var(--border); background:var(--white); margin-bottom:8px; transition:all 0.2s; box-shadow:var(--shadow); }
         .lb-row:hover { transform:translateX(3px); box-shadow:var(--shadow-md); }
         .lb-rank { font-size:22px; width:36px; text-align:center; }
-        .lb-name { flex:1; font-size:15px; font-weight:600; }
+        .lb-name { font-size:15px; font-weight:600; }
         .lb-bar-wrap { flex:1; height:6px; background:#f1f5f9; border-radius:3px; overflow:hidden; max-width:100px; }
         .lb-bar { height:100%; border-radius:3px; transition:width 0.6s ease; }
         .lb-score { font-size:24px; font-weight:800; }
@@ -440,6 +489,8 @@ export default function FacultyPage() {
         .fu1 { animation-delay:0.05s; opacity:0; }
         .fu2 { animation-delay:0.10s; opacity:0; }
         .fu3 { animation-delay:0.15s; opacity:0; }
+        @keyframes flicker { 0%,100%{transform:scale(1)} 50%{transform:scale(1.2)} }
+        .streak-fire { display:inline-block; animation:flicker 1.2s ease-in-out infinite; }
       `}</style>
 
       <Toast toasts={toasts} removeToast={removeToast} />
@@ -511,7 +562,25 @@ export default function FacultyPage() {
                   </div>
                 </div>
               </div>
+
               <PeriodSelector active={dashPeriod} onChange={handleDashPeriod} />
+
+              {/* 🔥 Top Streak Banner */}
+              {topStreakStudent && topStreakDays > 0 && (
+                <div className="streak-banner fu fu1">
+                  <span className="streak-fire" style={{ fontSize:36 }}>🔥</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:11, letterSpacing:"1.5px", textTransform:"uppercase", color:"#9a3412", fontWeight:700 }}>Longest Active Streak</div>
+                    <div style={{ fontSize:20, fontWeight:800, color:"#7c2d12", marginTop:2 }}>{topStreakStudent.name}</div>
+                    <div style={{ fontSize:13, color:"#c2410c", marginTop:2 }}>Attended {topStreakDays} day{topStreakDays !== 1 ? "s" : ""} in a row 🏅</div>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ fontSize:44, fontWeight:800, color:"#c2410c", lineHeight:1 }}>{topStreakDays}</div>
+                    <div style={{ fontSize:12, color:"#9a3412", fontWeight:600 }}>day streak</div>
+                  </div>
+                </div>
+              )}
+
               {studentOfDay && dashPeriod === "daily" && (
                 <div className="sod-card fu fu1">
                   <span className="sod-icon">⭐</span>
@@ -526,11 +595,12 @@ export default function FacultyPage() {
                   </div>
                 </div>
               )}
+
               <div className="stats-row fu fu2">
                 {[
-                  { label:"Total Students",                       value:students.length,          icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
-                  { label:`Scored ${periodLabel(dashPeriod)}`,    value:dashLeaderboard.length,   icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
-                  { label:"Average Score",                        value:dashAvg,                  icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
+                  { label:"Total Students",                    value:students.length,        icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
+                  { label:`Scored ${periodLabel(dashPeriod)}`, value:dashLeaderboard.length, icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
+                  { label:"Average Score",                     value:dashAvg,                icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
                 ].map(s => (
                   <div key={s.label} className="stat-card">
                     <div className="stat-card-accent" style={{ background:s.accent }} />
@@ -540,9 +610,10 @@ export default function FacultyPage() {
                   </div>
                 ))}
               </div>
+
               <div className="card fu fu3">
                 <div className="sec-label">🏆 {periodLabel(dashPeriod)}'s Top Performers</div>
-                <LeaderboardList data={dashLeaderboard.slice(0,5)} period={dashPeriod} />
+                <LeaderboardList data={dashLeaderboard.slice(0,5)} period={dashPeriod} streaks={streaks} />
               </div>
             </div>
           )}
@@ -564,7 +635,7 @@ export default function FacultyPage() {
               {scoreLeaderboard.length > 0 && (
                 <div className="card fu fu2" style={{ marginTop:24 }}>
                   <div className="sec-label">📊 {periodLabel(scorePeriod)} Rankings</div>
-                  <LeaderboardList data={scoreLeaderboard} period={scorePeriod} />
+                  <LeaderboardList data={scoreLeaderboard} period={scorePeriod} streaks={streaks} />
                 </div>
               )}
             </div>
@@ -589,16 +660,25 @@ export default function FacultyPage() {
                 {students.map((s, i) => {
                   const [g1, g2] = avatarColors[i % avatarColors.length]
                   const t = tierInfo(s.level === "Pro" ? 90 : s.level === "Skilled" ? 75 : s.level === "Learner" ? 50 : 0)
+                  const streak = streaks[s.id] || 0
                   return (
                     <div key={s.id} className="student-card fu" style={{ animationDelay:`${i * 0.04}s`, opacity:0 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                        <div className="s-avatar" style={{ background:`linear-gradient(135deg,${g1},${g2})` }}>
-                          {s.name.charAt(0).toUpperCase()}
+                        <div style={{ position:"relative" }}>
+                          <div className="s-avatar" style={{ background:`linear-gradient(135deg,${g1},${g2})` }}>
+                            {s.name.charAt(0).toUpperCase()}
+                          </div>
+                          {streak >= 3 && (
+                            <div style={{ position:"absolute", top:-6, right:-6, fontSize:14, lineHeight:1 }} title={`${streak} day streak`}>🔥</div>
+                          )}
                         </div>
                         <div>
                           <div style={{ fontSize:14, fontWeight:700, color:"var(--text)" }}>{s.name}</div>
                           <div style={{ fontSize:12, color:"var(--muted)", marginTop:2 }}>{s.email}</div>
-                          <span className="tier-pill" style={{ background:t.bg, color:t.color, border:`1px solid ${t.border}`, fontSize:11, marginTop:6, display:"inline-block" }}>{t.label}</span>
+                          <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" as const, alignItems:"center" }}>
+                            <span className="tier-pill" style={{ background:t.bg, color:t.color, border:`1px solid ${t.border}`, fontSize:11 }}>{t.label}</span>
+                            <StreakBadge streak={streak} />
+                          </div>
                         </div>
                       </div>
                       <button className="btn-del" onClick={() => deleteStudent(s.id).then(fetchBase)}>🗑 Remove</button>
@@ -618,7 +698,7 @@ export default function FacultyPage() {
               </div>
               <PeriodSelector active={dashPeriod} onChange={handleDashPeriod} />
               <div className="fu fu1">
-                <LeaderboardList data={dashLeaderboard} period={dashPeriod} />
+                <LeaderboardList data={dashLeaderboard} period={dashPeriod} streaks={streaks} />
               </div>
             </div>
           )}
@@ -721,8 +801,6 @@ export default function FacultyPage() {
                 <h1 className="page-title">📈 Performance Analytics</h1>
                 <p className="page-sub">Average scores and category breakdown per student</p>
               </div>
-
-              {/* Day selector */}
               <div className="card fu fu1" style={{ marginBottom:24, padding:"18px 24px" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
                   <span style={{ fontSize:13, fontWeight:600, color:"var(--muted)" }}>Show averages for last:</span>
@@ -754,13 +832,11 @@ export default function FacultyPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Summary stats */}
               <div className="stats-row fu fu2">
                 {[
-                  { label:"Total Students",      value:analytics.length,                                icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
-                  { label:"Active Students",      value:analytics.filter(a=>a.sessions>0).length,       icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
-                  { label:`Class Avg (${analyticsDays}d)`, value:classAvg,                             icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
+                  { label:"Total Students",      value:analytics.length,                          icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
+                  { label:"Active Students",      value:analytics.filter(a=>a.sessions>0).length, icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
+                  { label:`Class Avg (${analyticsDays}d)`, value:classAvg,                        icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
                 ].map(s => (
                   <div key={s.label} className="stat-card">
                     <div className="stat-card-accent" style={{ background:s.accent }} />
@@ -770,8 +846,6 @@ export default function FacultyPage() {
                   </div>
                 ))}
               </div>
-
-              {/* Student analytics list */}
               {analyticsLoading ? (
                 <div className="card" style={{ textAlign:"center", padding:"48px" }}>
                   <div style={{ fontSize:32, marginBottom:8 }}>⏳</div>
@@ -783,9 +857,9 @@ export default function FacultyPage() {
                     const t = tierInfo(a.avg_total)
                     const isExpanded = expandedStudent === a.id
                     const [g1,g2] = avatarColors[i % avatarColors.length]
+                    const streak = streaks[a.id] || 0
                     return (
                       <div key={a.id} className="analytics-row fu" style={{ animationDelay:`${i*0.04}s`, opacity:0 }}>
-                        {/* Header row */}
                         <div className="analytics-header" onClick={() => setExpandedStudent(isExpanded ? null : a.id)}>
                           <div className="s-avatar" style={{ background:`linear-gradient(135deg,${g1},${g2})`, width:44, height:44, borderRadius:12, fontSize:18 }}>
                             {a.name.charAt(0).toUpperCase()}
@@ -793,14 +867,14 @@ export default function FacultyPage() {
                           <div style={{ flex:1 }}>
                             <div style={{ fontWeight:700, fontSize:15, color:"var(--text)" }}>{a.name}</div>
                             <div style={{ fontSize:12, color:"var(--muted)", marginTop:2 }}>{a.email}</div>
-                            <div style={{ display:"flex", gap:8, marginTop:6, flexWrap:"wrap" }}>
+                            <div style={{ display:"flex", gap:8, marginTop:6, flexWrap:"wrap" as const, alignItems:"center" }}>
                               <span className="tier-pill" style={{ background:t.bg, color:t.color, border:`1px solid ${t.border}`, fontSize:11 }}>{t.label}</span>
                               <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background:"#f1f5f9", color:"var(--muted)", fontWeight:600 }}>
                                 📅 {a.sessions} session{a.sessions !== 1 ? "s" : ""} in {analyticsDays}d
                               </span>
+                              <StreakBadge streak={streak} />
                             </div>
                           </div>
-                          {/* Average score */}
                           <div style={{ textAlign:"center", minWidth:90 }}>
                             {a.sessions > 0 ? (
                               <>
@@ -816,8 +890,6 @@ export default function FacultyPage() {
                           </div>
                           <div style={{ fontSize:18, color:"var(--faint)", transform:isExpanded?"rotate(180deg)":"rotate(0deg)", transition:"transform 0.3s", marginLeft:8 }}>▾</div>
                         </div>
-
-                        {/* Expanded breakdown */}
                         {isExpanded && (
                           <div className="analytics-detail">
                             {a.sessions > 0 ? (
