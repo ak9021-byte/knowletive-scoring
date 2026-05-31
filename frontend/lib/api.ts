@@ -43,7 +43,7 @@ export const getAllStreaks = () =>
 
 // Google Sheet attendance fetch
 export const fetchAttendanceFromSheet = async (sheetId: string) => {
-  const url = `https://docs.google.com/spreadsheets/d/1BV-Dgl6CwPlv1KrQux9mNoGCA6qouBH9/edit?usp=sharing&ouid=107551391375033821000&rtpof=true&sd=true`
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`
   const response = await fetch(url)
   const csv = await response.text()
   return parseAttendanceCSV(csv)

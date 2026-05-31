@@ -3,7 +3,7 @@ import { useState } from "react"
 import { fetchAttendanceFromSheet } from "@/lib/api"
 
 export default function AttendanceTracker() {
-  const [sheetUrl, setSheetUrl] = useState("https://docs.google.com/spreadsheets/d/1BV-Dgl6CwPlv1KrQux9mNoGCA6qouBH9/edit?usp=sharing&ouid=107551391375033821000&rtpof=true&sd=true")
+  const [sheetUrl, setSheetUrl] = useState("https://docs.google.com/spreadsheets/d/1BV-Dgl6CwPlv1KrQux9mNoGCA6qouBH9/edit")
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
