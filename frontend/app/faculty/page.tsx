@@ -7,7 +7,8 @@ import {
   getStudents, createStudent, deleteStudent,
   getLeaderboard, getStudentOfDay, submitScore,
   giveReward, getAllRewards,
-  getWeeklyLeaderboard, getMonthlyLeaderboard
+  getWeeklyLeaderboard, getMonthlyLeaderboard,
+  getAllAverages
 } from "@/lib/api"
 
 type Period = "daily" | "weekly" | "monthly"
@@ -33,7 +34,7 @@ const emptyScoreForm = () => ({
 })
 
 const tierInfo = (t: number) =>
-  t >= 90 ? { label: "🔮 Pro",      color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" }
+  t >= 90 ? { label: "🔮 Pro",       color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" }
   : t >= 75 ? { label: "💎 Skilled", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" }
   : t >= 50 ? { label: "🌟 Learner", color: "#d97706", bg: "#fffbeb", border: "#fde68a" }
   :           { label: "🌱 Beginner",color: "#dc2626", bg: "#fef2f2", border: "#fecaca" }
@@ -150,26 +151,31 @@ export default function FacultyPage() {
   const [rewardForm, setRewardForm] = useState({ student_id:"", type:"daily", title:"" })
   const [suggestion, setSuggestion] = useState("")
   const [suggestionStudentId, setSuggestionStudentId] = useState("")
-
   const [dashPeriod, setDashPeriod] = useState<Period>("daily")
   const [scorePeriod, setScorePeriod] = useState<Period>("daily")
-  const [rewardPeriod, setRewardPeriod] = useState<Period>("daily")  // ✅ new
-
+  const [rewardPeriod, setRewardPeriod] = useState<Period>("daily")
   const [dashLeaderboard, setDashLeaderboard] = useState<any[]>([])
   const [scoreLeaderboard, setScoreLeaderboard] = useState<any[]>([])
-
   const [dailyForm,   setDailyForm]   = useState(emptyScoreForm())
   const [weeklyForm,  setWeeklyForm]  = useState(emptyScoreForm())
   const [monthlyForm, setMonthlyForm] = useState(emptyScoreForm())
 
-  const formByPeriod   = { daily: dailyForm,   weekly: weeklyForm,   monthly: monthlyForm   }
-  const setFormByPeriod= { daily: setDailyForm, weekly: setWeeklyForm, monthly: setMonthlyForm }
+  // Analytics state
+  const [analytics, setAnalytics] = useState<any[]>([])
+  const [analyticsDays, setAnalyticsDays] = useState(7)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [expandedStudent, setExpandedStudent] = useState<number|null>(null)
+  const [customDays, setCustomDays] = useState("")
+
+  const formByPeriod    = { daily: dailyForm,    weekly: weeklyForm,    monthly: monthlyForm    }
+  const setFormByPeriod = { daily: setDailyForm,  weekly: setWeeklyForm, monthly: setMonthlyForm }
 
   useEffect(() => {
     if (!localStorage.getItem("faculty_auth")) { router.push("/login"); return }
     fetchBase()
     fetchLeaderboard("daily", "dash")
     fetchLeaderboard("daily", "score")
+    fetchAnalytics(7)
   }, [])
 
   const fetchBase = async () => {
@@ -183,29 +189,37 @@ export default function FacultyPage() {
   const fetchLeaderboard = async (period: Period, context: "dash" | "score") => {
     try {
       let res
-      if (period === "daily")        res = await getLeaderboard()
-      else if (period === "weekly")  res = await getWeeklyLeaderboard()
-      else                           res = await getMonthlyLeaderboard()
-      if (context === "dash")  setDashLeaderboard(res.data)
-      else                     setScoreLeaderboard(res.data)
+      if (period === "daily")       res = await getLeaderboard()
+      else if (period === "weekly") res = await getWeeklyLeaderboard()
+      else                          res = await getMonthlyLeaderboard()
+      if (context === "dash") setDashLeaderboard(res.data)
+      else                    setScoreLeaderboard(res.data)
     } catch {
-      if (context === "dash")  setDashLeaderboard([])
-      else                     setScoreLeaderboard([])
+      if (context === "dash") setDashLeaderboard([])
+      else                    setScoreLeaderboard([])
     }
   }
 
-  const handleDashPeriod = (p: Period) => { setDashPeriod(p); fetchLeaderboard(p, "dash") }
+  const fetchAnalytics = async (days: number) => {
+    setAnalyticsLoading(true)
+    try {
+      const res = await getAllAverages(days)
+      setAnalytics(res.data)
+    } catch {}
+    setAnalyticsLoading(false)
+  }
+
+  const handleDashPeriod  = (p: Period) => { setDashPeriod(p);  fetchLeaderboard(p, "dash")  }
   const handleScorePeriod = (p: Period) => { setScorePeriod(p); fetchLeaderboard(p, "score") }
 
   const handleSubmitScore = async (period: Period) => {
-    const form = formByPeriod[period]
+    const form    = formByPeriod[period]
     const setForm = setFormByPeriod[period]
     if (!form.student_id) return showToast("Please select a student!", "warning")
     const total = Object.keys(scoreMax).reduce((sum, k) => sum + Number((form as any)[k]), 0)
     try {
-      await submitScore({ ...form, student_id: Number(form.student_id), total, score_type: period })
-      fetchBase()
-      fetchLeaderboard(period, "score")
+      await submitScore({ ...form, student_id: Number(form.student_id), total })
+      fetchBase(); fetchLeaderboard(period, "score")
       showToast("Score submitted successfully! 🚀", "success")
       setForm(emptyScoreForm())
     } catch (err: any) {
@@ -218,8 +232,7 @@ export default function FacultyPage() {
     if (!newName || !newEmail) return showToast("Please fill in all fields!", "warning")
     try {
       await createStudent({ name: newName, email: newEmail })
-      setNewName(""); setNewEmail("")
-      fetchBase()
+      setNewName(""); setNewEmail(""); fetchBase()
       showToast(`${newName} added successfully!`, "success")
     } catch { showToast("Error adding student. Email may already exist!", "error") }
   }
@@ -228,8 +241,7 @@ export default function FacultyPage() {
     if (!rewardForm.student_id || !rewardForm.title) return showToast("Please fill in all fields!", "warning")
     try {
       await giveReward({ ...rewardForm, student_id: Number(rewardForm.student_id) })
-      setRewardForm({ student_id:"", type:"daily", title:"" })
-      fetchBase()
+      setRewardForm({ student_id:"", type:"daily", title:"" }); fetchBase()
       showToast("Award given successfully! 🏅", "success")
     } catch { showToast("Error giving award!", "error") }
   }
@@ -254,18 +266,18 @@ export default function FacultyPage() {
     { id:"students",   icon:"👥", label:"Students"    },
     { id:"leaderboard",icon:"🏆", label:"Leaderboard" },
     { id:"rewards",    icon:"🎖️", label:"Rewards"     },
+    { id:"analytics",  icon:"📈", label:"Analytics"   },
   ]
 
   const dashAvg = dashLeaderboard.length > 0
     ? Math.round(dashLeaderboard.reduce((a,b) => a + b.total, 0) / dashLeaderboard.length) : 0
-
   const periodLabel = (p: Period) => p === "daily" ? "Today" : p === "weekly" ? "This Week" : "This Month"
 
   const ScoreEntryForm = ({ period }: { period: Period }) => {
-    const form = formByPeriod[period]
+    const form    = formByPeriod[period]
     const setForm = setFormByPeriod[period]
-    const total = Object.keys(scoreMax).reduce((sum, k) => sum + Number((form as any)[k]), 0)
-    const tier = tierInfo(total)
+    const total   = Object.keys(scoreMax).reduce((sum, k) => sum + Number((form as any)[k]), 0)
+    const tier    = tierInfo(total)
     return (
       <div className="card fu fu1">
         <div className="sec-label">👤 Student & Date</div>
@@ -301,6 +313,19 @@ export default function FacultyPage() {
     )
   }
 
+  const analyticsCats = [
+    { key:"avg_attendance", label:"Attendance", max:10,  icon:"🟢", color:"#10b981" },
+    { key:"avg_speak_up",   label:"Speak Up",   max:15,  icon:"🎤", color:"#8b5cf6" },
+    { key:"avg_activity",   label:"Activity",   max:20,  icon:"⚡", color:"#f59e0b" },
+    { key:"avg_technical",  label:"Technical",  max:30,  icon:"💻", color:"#3b82f6" },
+    { key:"avg_behavior",   label:"Behavior",   max:10,  icon:"🤝", color:"#ec4899" },
+    { key:"avg_initiative", label:"Initiative", max:15,  icon:"🚀", color:"#6366f1" },
+  ]
+
+  const classAvg = analytics.filter(a => a.sessions > 0).length > 0
+    ? Math.round(analytics.filter(a => a.sessions > 0).reduce((s,a) => s + a.avg_total, 0) / analytics.filter(a => a.sessions > 0).length)
+    : 0
+
   return (
     <>
       <style>{`
@@ -322,7 +347,7 @@ export default function FacultyPage() {
         .brand-zone { padding:24px 20px 18px; border-bottom:1px solid var(--border); background:linear-gradient(135deg,#f8f7ff 0%,#ffffff 100%); }
         .brand-logo { height:42px; width:auto; object-fit:contain; }
         .brand-tag { font-size:10px; letter-spacing:2px; color:var(--faint); text-transform:uppercase; margin-top:6px; font-weight:600; }
-        .nav-area { padding:16px 12px; flex:1; display:flex; flex-direction:column; gap:3px; }
+        .nav-area { padding:16px 12px; flex:1; display:flex; flex-direction:column; gap:3px; overflow-y:auto; }
         .nav-label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--faint); font-weight:700; padding:0 10px; margin:8px 0 6px; }
         .nav-item { display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:var(--radius-sm); border:1px solid transparent; cursor:pointer; font-size:13.5px; font-weight:600; transition:all 0.18s; color:var(--muted); background:none; font-family:var(--font); text-align:left; width:100%; }
         .nav-item:hover { color:var(--text); background:#f8f9fe; border-color:var(--border); }
@@ -389,9 +414,17 @@ export default function FacultyPage() {
         .s-avatar { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; color:#fff; flex-shrink:0; }
         .reward-row { display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:10px; background:var(--white); border:1px solid var(--border); margin-bottom:8px; transition:all 0.2s; }
         .reward-row:hover { border-color:var(--border-dark); box-shadow:var(--shadow); }
+        .period-banner { display:flex; align-items:center; gap:10px; padding:12px 18px; border-radius:10px; background:#eef0ff; border:1px solid #c7d2fe; margin-bottom:20px; font-size:13px; font-weight:600; color:#4338ca; }
+        .analytics-row { background:var(--white); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; margin-bottom:12px; transition:all 0.2s; }
+        .analytics-row:hover { box-shadow:var(--shadow-md); }
+        .analytics-header { display:flex; align-items:center; gap:16px; padding:18px 24px; cursor:pointer; transition:background 0.2s; }
+        .analytics-header:hover { background:#fafbff; }
+        .analytics-detail { border-top:1px solid var(--border); padding:20px 24px; background:#fafbff; }
+        .cat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
+        .cat-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+        .day-btn { padding:8px 14px; border-radius:9px; border:none; cursor:pointer; font-weight:700; font-size:13px; font-family:var(--font); transition:all 0.2s; }
         .mobile-bar { display:none; }
         .sidebar-visible { display:flex; }
-        .period-banner { display:flex; align-items:center; gap:10px; padding:12px 18px; border-radius:10px; background:#eef0ff; border:1px solid #c7d2fe; margin-bottom:20px; font-size:13px; font-weight:600; color:#4338ca; }
         @media(max-width:768px){
           .sidebar-visible { display:none; }
           .mobile-bar { display:flex; position:fixed; top:0; left:0; right:0; z-index:50; background:rgba(255,255,255,0.95); backdrop-filter:blur(16px); border-bottom:1px solid var(--border); padding:14px 20px; align-items:center; justify-content:space-between; }
@@ -399,6 +432,7 @@ export default function FacultyPage() {
           .stats-row { grid-template-columns:1fr 1fr; }
           .two-col { grid-template-columns:1fr!important; }
           .score-metric { flex-wrap:wrap; }
+          .cat-grid { grid-template-columns:1fr 1fr; }
         }
         @keyframes fadeUp { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:translateY(0) } }
         .fu  { animation:fadeUp 0.4s ease forwards; }
@@ -411,6 +445,7 @@ export default function FacultyPage() {
 
       <div className="layout">
 
+        {/* SIDEBAR */}
         <aside className="sidebar sidebar-visible">
           <div className="brand-zone">
             <img src="/logo.png" alt="Knowletive" className="brand-logo" />
@@ -440,11 +475,13 @@ export default function FacultyPage() {
           </div>
         </aside>
 
+        {/* MOBILE HEADER */}
         <div className="mobile-bar">
           <img src="/logo.png" alt="Knowletive" style={{ height:32, objectFit:"contain" }} />
           <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background:"#f1f5f9", border:"1px solid var(--border)", borderRadius:8, padding:"8px 12px", cursor:"pointer", fontSize:18 }}>☰</button>
         </div>
 
+        {/* MOBILE DRAWER */}
         {sidebarOpen && (
           <div style={{ position:"fixed", inset:0, zIndex:100, background:"rgba(0,0,0,0.4)", display:"flex" }} onClick={() => setSidebarOpen(false)}>
             <div style={{ width:264, background:"#fff", height:"100%", padding:"80px 12px 24px", boxShadow:"4px 0 24px rgba(0,0,0,0.12)" }} onClick={e => e.stopPropagation()}>
@@ -459,7 +496,7 @@ export default function FacultyPage() {
 
         <main className="main">
 
-          {/* ══════════════ DASHBOARD ══════════════ */}
+          {/* ══ DASHBOARD ══ */}
           {tab === "dashboard" && (
             <div style={{ maxWidth:880 }}>
               <div className="page-header fu">
@@ -490,9 +527,9 @@ export default function FacultyPage() {
               )}
               <div className="stats-row fu fu2">
                 {[
-                  { label:"Total Students",   value:students.length,         icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
-                  { label:`Scored ${periodLabel(dashPeriod)}`, value:dashLeaderboard.length, icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
-                  { label:"Average Score",    value:dashAvg,                 icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
+                  { label:"Total Students",                       value:students.length,          icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
+                  { label:`Scored ${periodLabel(dashPeriod)}`,    value:dashLeaderboard.length,   icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
+                  { label:"Average Score",                        value:dashAvg,                  icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
                 ].map(s => (
                   <div key={s.label} className="stat-card">
                     <div className="stat-card-accent" style={{ background:s.accent }} />
@@ -509,7 +546,7 @@ export default function FacultyPage() {
             </div>
           )}
 
-          {/* ══════════════ SCORE ENTRY ══════════════ */}
+          {/* ══ SCORE ENTRY ══ */}
           {tab === "score" && (
             <div style={{ maxWidth:680 }}>
               <div className="page-header fu">
@@ -532,7 +569,7 @@ export default function FacultyPage() {
             </div>
           )}
 
-          {/* ══════════════ STUDENTS ══════════════ */}
+          {/* ══ STUDENTS ══ */}
           {tab === "students" && (
             <div style={{ maxWidth:820 }}>
               <div className="page-header fu">
@@ -542,8 +579,8 @@ export default function FacultyPage() {
               <div className="card fu fu1" style={{ marginBottom:24 }}>
                 <div className="sec-label">➕ Add New Student</div>
                 <div style={{ display:"flex", gap:12, flexWrap:"wrap" as const }}>
-                  <input className="f-input" placeholder="Full name"      value={newName}  onChange={e => setNewName(e.target.value)}  style={{ flex:1, minWidth:150 }} />
-                  <input className="f-input" placeholder="Email address"  value={newEmail} onChange={e => setNewEmail(e.target.value)} style={{ flex:1, minWidth:150 }} />
+                  <input className="f-input" placeholder="Full name"     value={newName}  onChange={e => setNewName(e.target.value)}  style={{ flex:1, minWidth:150 }} />
+                  <input className="f-input" placeholder="Email address" value={newEmail} onChange={e => setNewEmail(e.target.value)} style={{ flex:1, minWidth:150 }} />
                   <button className="btn-add" onClick={handleAddStudent}>+ Add Student</button>
                 </div>
               </div>
@@ -571,7 +608,7 @@ export default function FacultyPage() {
             </div>
           )}
 
-          {/* ══════════════ LEADERBOARD ══════════════ */}
+          {/* ══ LEADERBOARD ══ */}
           {tab === "leaderboard" && (
             <div style={{ maxWidth:700 }}>
               <div className="page-header fu">
@@ -585,19 +622,15 @@ export default function FacultyPage() {
             </div>
           )}
 
-          {/* ══════════════ REWARDS ══════════════ */}
+          {/* ══ REWARDS ══ */}
           {tab === "rewards" && (
             <div style={{ maxWidth:880 }}>
               <div className="page-header fu">
                 <h1 className="page-title">🎖️ Rewards & Feedback</h1>
                 <p className="page-sub">Recognise achievements and guide student growth</p>
               </div>
-
-              {/* ✅ Period selector for rewards */}
               <PeriodSelector active={rewardPeriod} onChange={setRewardPeriod} />
-
               <div className="two-col fu fu1" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:24 }}>
-                {/* Give Award */}
                 <div className="card">
                   <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
                     <div style={{ width:44, height:44, borderRadius:12, background:"#fffbeb", border:"1px solid #fde68a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>🏅</div>
@@ -607,23 +640,20 @@ export default function FacultyPage() {
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-                    <div>
-                      <label className="field-label">Student</label>
+                    <div><label className="field-label">Student</label>
                       <select className="f-input" value={rewardForm.student_id} onChange={e => setRewardForm({...rewardForm, student_id:e.target.value})}>
                         <option value="">— Select student —</option>
                         {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="field-label">Award Type</label>
+                    <div><label className="field-label">Award Type</label>
                       <select className="f-input" value={rewardForm.type} onChange={e => setRewardForm({...rewardForm, type:e.target.value})}>
                         <option value="daily">🌟 Daily</option>
                         <option value="weekly">📅 Weekly</option>
                         <option value="monthly">🏆 Monthly</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="field-label">Award Title</label>
+                    <div><label className="field-label">Award Title</label>
                       <select className="f-input" value={rewardForm.title} onChange={e => setRewardForm({...rewardForm, title:e.target.value})}>
                         <option value="">— Select award —</option>
                         <option value="Student of the Day">⭐ Student of the Day</option>
@@ -637,7 +667,6 @@ export default function FacultyPage() {
                     <button className="btn-gold" onClick={handleGiveReward}>🏅 Give Award</button>
                   </div>
                 </div>
-                {/* Feedback */}
                 <div className="card">
                   <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
                     <div style={{ width:44, height:44, borderRadius:12, background:"#eef0ff", border:"1px solid #c7d2fe", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>💬</div>
@@ -647,26 +676,20 @@ export default function FacultyPage() {
                     </div>
                   </div>
                   <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-                    <div>
-                      <label className="field-label">Student</label>
+                    <div><label className="field-label">Student</label>
                       <select className="f-input" value={suggestionStudentId} onChange={e => setSuggestionStudentId(e.target.value)}>
                         <option value="">— Select student —</option>
                         {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="field-label">Feedback Message</label>
-                      <textarea className="f-textarea" rows={5}
-                        placeholder="Mention strengths + areas to improve…"
-                        value={suggestion} onChange={e => setSuggestion(e.target.value)} />
+                    <div><label className="field-label">Feedback Message</label>
+                      <textarea className="f-textarea" rows={5} placeholder="Mention strengths + areas to improve…" value={suggestion} onChange={e => setSuggestion(e.target.value)} />
                       <div style={{ fontSize:11, color:"var(--faint)", marginTop:5 }}>💡 Be specific — mention what they did well and what to work on</div>
                     </div>
                     <button className="btn-primary" onClick={handleSubmitSuggestion}>💬 Send Feedback</button>
                   </div>
                 </div>
               </div>
-
-              {/* ✅ Filtered rewards by period */}
               {rewards.filter((r:any) => r.type === rewardPeriod).length > 0 && (
                 <div className="card fu fu2">
                   <div className="sec-label">🕒 {rewardPeriod.charAt(0).toUpperCase() + rewardPeriod.slice(1)} Awards</div>
@@ -678,18 +701,163 @@ export default function FacultyPage() {
                         <div style={{ fontSize:12, color:"var(--muted)", marginTop:1 }}>{r.title}</div>
                       </div>
                       <div style={{ textAlign:"right" }}>
-                        <span className="tier-pill" style={{
-                          background: r.type==="daily"?"#fffbeb":r.type==="weekly"?"#eff6ff":"#f5f3ff",
-                          color:       r.type==="daily"?"#d97706":r.type==="weekly"?"#2563eb":"#7c3aed",
-                          border:`1px solid ${r.type==="daily"?"#fde68a":r.type==="weekly"?"#bfdbfe":"#ddd6fe"}`,
-                          fontSize:11,
-                        }}>
+                        <span className="tier-pill" style={{ background:r.type==="daily"?"#fffbeb":r.type==="weekly"?"#eff6ff":"#f5f3ff", color:r.type==="daily"?"#d97706":r.type==="weekly"?"#2563eb":"#7c3aed", border:`1px solid ${r.type==="daily"?"#fde68a":r.type==="weekly"?"#bfdbfe":"#ddd6fe"}`, fontSize:11 }}>
                           {r.type==="daily"?"🌟 Daily":r.type==="weekly"?"📅 Weekly":"🏆 Monthly"}
                         </span>
                         <div style={{ fontSize:11, color:"var(--faint)", marginTop:4 }}>{r.date}</div>
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ══ ANALYTICS ══ */}
+          {tab === "analytics" && (
+            <div style={{ maxWidth:900 }}>
+              <div className="page-header fu">
+                <h1 className="page-title">📈 Performance Analytics</h1>
+                <p className="page-sub">Average scores and category breakdown per student</p>
+              </div>
+
+              {/* Day selector */}
+              <div className="card fu fu1" style={{ marginBottom:24, padding:"18px 24px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:"var(--muted)" }}>Show averages for last:</span>
+                  <div style={{ display:"flex", gap:6, background:"#f1f5f9", padding:4, borderRadius:12 }}>
+                    {[4, 7, 14, 30].map(d => (
+                      <button key={d} className="day-btn" onClick={() => { setAnalyticsDays(d); fetchAnalytics(d) }}
+                        style={{ background: analyticsDays===d?"#fff":"transparent", color:analyticsDays===d?"#5b5ef4":"#94a3b8", boxShadow:analyticsDays===d?"0 2px 8px rgba(0,0,0,0.1)":"none" }}>
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
+                    <input
+                      type="number" min={1} max={365} placeholder="Custom"
+                      value={customDays}
+                      onChange={e => setCustomDays(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          const v = parseInt(customDays)
+                          if (v > 0) { setAnalyticsDays(v); fetchAnalytics(v) }
+                        }
+                      }}
+                      style={{ width:90, padding:"9px 12px", borderRadius:10, border:"1.5px solid var(--border)", fontSize:13, fontFamily:"var(--font)", outline:"none", color:"var(--text)" }}
+                    />
+                    <button onClick={() => { const v=parseInt(customDays); if(v>0){setAnalyticsDays(v);fetchAnalytics(v)} }}
+                      style={{ padding:"9px 16px", borderRadius:10, border:"1.5px solid var(--accent)", background:"var(--accent-light)", color:"var(--accent)", cursor:"pointer", fontWeight:700, fontSize:13, fontFamily:"var(--font)" }}>
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary stats */}
+              <div className="stats-row fu fu2">
+                {[
+                  { label:"Total Students",      value:analytics.length,                                icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
+                  { label:"Active Students",      value:analytics.filter(a=>a.sessions>0).length,       icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
+                  { label:`Class Avg (${analyticsDays}d)`, value:classAvg,                             icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
+                ].map(s => (
+                  <div key={s.label} className="stat-card">
+                    <div className="stat-card-accent" style={{ background:s.accent }} />
+                    <div className="stat-icon" style={{ background:s.iconBg }}>{s.icon}</div>
+                    <div className="stat-value" style={{ color:s.accent }}>{s.value}</div>
+                    <div className="stat-label">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Student analytics list */}
+              {analyticsLoading ? (
+                <div className="card" style={{ textAlign:"center", padding:"48px" }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>⏳</div>
+                  <p style={{ color:"var(--muted)" }}>Loading analytics...</p>
+                </div>
+              ) : (
+                <div>
+                  {analytics.map((a, i) => {
+                    const t = tierInfo(a.avg_total)
+                    const isExpanded = expandedStudent === a.id
+                    const [g1,g2] = avatarColors[i % avatarColors.length]
+                    return (
+                      <div key={a.id} className="analytics-row fu" style={{ animationDelay:`${i*0.04}s`, opacity:0 }}>
+                        {/* Header row */}
+                        <div className="analytics-header" onClick={() => setExpandedStudent(isExpanded ? null : a.id)}>
+                          <div className="s-avatar" style={{ background:`linear-gradient(135deg,${g1},${g2})`, width:44, height:44, borderRadius:12, fontSize:18 }}>
+                            {a.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontWeight:700, fontSize:15, color:"var(--text)" }}>{a.name}</div>
+                            <div style={{ fontSize:12, color:"var(--muted)", marginTop:2 }}>{a.email}</div>
+                            <div style={{ display:"flex", gap:8, marginTop:6, flexWrap:"wrap" }}>
+                              <span className="tier-pill" style={{ background:t.bg, color:t.color, border:`1px solid ${t.border}`, fontSize:11 }}>{t.label}</span>
+                              <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background:"#f1f5f9", color:"var(--muted)", fontWeight:600 }}>
+                                📅 {a.sessions} session{a.sessions !== 1 ? "s" : ""} in {analyticsDays}d
+                              </span>
+                            </div>
+                          </div>
+                          {/* Average score */}
+                          <div style={{ textAlign:"center", minWidth:90 }}>
+                            {a.sessions > 0 ? (
+                              <>
+                                <div style={{ fontSize:34, fontWeight:800, color:t.color, lineHeight:1 }}>{a.avg_total}</div>
+                                <div style={{ fontSize:11, color:"var(--faint)", marginTop:2 }}>avg / 100</div>
+                                <div style={{ height:4, background:"#f1f5f9", borderRadius:99, overflow:"hidden", marginTop:6, width:80 }}>
+                                  <div style={{ height:"100%", width:`${a.avg_total}%`, background:t.color, borderRadius:99 }} />
+                                </div>
+                              </>
+                            ) : (
+                              <div style={{ fontSize:13, color:"var(--faint)", fontWeight:500 }}>No data</div>
+                            )}
+                          </div>
+                          <div style={{ fontSize:18, color:"var(--faint)", transform:isExpanded?"rotate(180deg)":"rotate(0deg)", transition:"transform 0.3s", marginLeft:8 }}>▾</div>
+                        </div>
+
+                        {/* Expanded breakdown */}
+                        {isExpanded && (
+                          <div className="analytics-detail">
+                            {a.sessions > 0 ? (
+                              <>
+                                <div style={{ fontSize:12, fontWeight:700, color:"var(--faint)", letterSpacing:"1px", textTransform:"uppercase", marginBottom:14 }}>
+                                  Category Breakdown — {analyticsDays} day average
+                                </div>
+                                <div className="cat-grid">
+                                  {analyticsCats.map(cat => {
+                                    const val = a[cat.key]
+                                    const pct = Math.round((val / cat.max) * 100)
+                                    return (
+                                      <div key={cat.key} className="cat-card">
+                                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                                          <span style={{ fontSize:13, fontWeight:600, color:"var(--text)", display:"flex", alignItems:"center", gap:6 }}>
+                                            {cat.icon} {cat.label}
+                                          </span>
+                                          <span style={{ fontSize:14, fontWeight:800, color:cat.color }}>
+                                            {val}<span style={{ fontSize:11, color:"var(--faint)", fontWeight:400 }}>/{cat.max}</span>
+                                          </span>
+                                        </div>
+                                        <div style={{ height:6, background:"#f1f5f9", borderRadius:99, overflow:"hidden" }}>
+                                          <div style={{ height:"100%", width:`${pct}%`, background:cat.color, borderRadius:99, transition:"width 0.6s" }} />
+                                        </div>
+                                        <div style={{ fontSize:11, color:"var(--faint)", marginTop:5 }}>{pct}% of max</div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </>
+                            ) : (
+                              <div style={{ textAlign:"center", padding:"24px" }}>
+                                <div style={{ fontSize:32, marginBottom:8 }}>📭</div>
+                                <p style={{ color:"var(--muted)", fontSize:14 }}>No scores in last {analyticsDays} days</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

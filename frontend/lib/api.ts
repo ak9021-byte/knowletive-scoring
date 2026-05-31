@@ -29,3 +29,8 @@ export const giveReward = (data: any) =>
 export const getStudentRewards = (studentId: number) =>
   API.get(`/students/rewards/student/${studentId}`)
 export const getAllRewards = () => API.get("/students/rewards/all")
+
+export const getAllAverages = (days: number) =>
+  API.get(`/scores/averages/all?days=${days}`)
+export const getStudentAverage = (studentId: number, days: number) =>
+  API.get(`/scores/average/${studentId}?days=${days}`)

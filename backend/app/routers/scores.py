@@ -216,3 +216,89 @@ def scores_by_range(student_id: int, range: str = "daily", db: Session = Depends
         .all()
     )
     return scores
+
+@router.get("/average/{student_id}")
+def student_average(student_id: int, days: int = 7, db: Session = Depends(get_db)):
+    from datetime import date, timedelta
+    end = date.today()
+    start = end - timedelta(days=days-1)
+
+    scores = db.query(Score).filter(
+        Score.student_id == student_id,
+        Score.date >= start,
+        Score.date <= end,
+        Score.total > 0
+    ).order_by(Score.date.desc()).all()
+
+    if not scores:
+        return {
+            "student_id": student_id,
+            "days": days,
+            "total_sessions": 0,
+            "average_total": 0,
+            "average_attendance": 0,
+            "average_speak_up": 0,
+            "average_activity": 0,
+            "average_technical": 0,
+            "average_behavior": 0,
+            "average_initiative": 0,
+            "scores": []
+        }
+
+    count = len(scores)
+    return {
+        "student_id": student_id,
+        "days": days,
+        "total_sessions": count,
+        "average_total": round(sum(s.total for s in scores) / count, 1),
+        "average_attendance": round(sum(s.attendance for s in scores) / count, 1),
+        "average_speak_up": round(sum(s.speak_up for s in scores) / count, 1),
+        "average_activity": round(sum(s.activity for s in scores) / count, 1),
+        "average_technical": round(sum(s.technical for s in scores) / count, 1),
+        "average_behavior": round(sum(s.behavior for s in scores) / count, 1),
+        "average_initiative": round(sum(s.initiative for s in scores) / count, 1),
+        "scores": [{"date": str(s.date), "total": s.total} for s in scores]
+    }
+
+@router.get("/averages/all")
+def all_students_average(days: int = 7, db: Session = Depends(get_db)):
+    from datetime import date, timedelta
+    end = date.today()
+    start = end - timedelta(days=days-1)
+
+    results = (
+        db.query(
+            Student.id,
+            Student.name,
+            Student.email,
+            Student.level,
+            func.count(Score.id).label("sessions"),
+            func.avg(Score.total).label("avg_total"),
+            func.avg(Score.attendance).label("avg_attendance"),
+            func.avg(Score.speak_up).label("avg_speak_up"),
+            func.avg(Score.activity).label("avg_activity"),
+            func.avg(Score.technical).label("avg_technical"),
+            func.avg(Score.behavior).label("avg_behavior"),
+            func.avg(Score.initiative).label("avg_initiative"),
+        )
+        .outerjoin(Score, (Score.student_id == Student.id) & (Score.date >= start) & (Score.date <= end) & (Score.total > 0))
+        .group_by(Student.id, Student.name, Student.email, Student.level)
+        .order_by(func.avg(Score.total).desc().nulls_last())
+        .all()
+    )
+
+    return [{
+        "id": r.id,
+        "name": r.name,
+        "email": r.email,
+        "level": r.level,
+        "sessions": r.sessions or 0,
+        "avg_total": round(float(r.avg_total or 0), 1),
+        "avg_attendance": round(float(r.avg_attendance or 0), 1),
+        "avg_speak_up": round(float(r.avg_speak_up or 0), 1),
+        "avg_activity": round(float(r.avg_activity or 0), 1),
+        "avg_technical": round(float(r.avg_technical or 0), 1),
+        "avg_behavior": round(float(r.avg_behavior or 0), 1),
+        "avg_initiative": round(float(r.avg_initiative or 0), 1),
+    } for r in results]
+
