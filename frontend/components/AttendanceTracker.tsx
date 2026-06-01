@@ -132,7 +132,6 @@ export default function AttendanceTracker() {
       {/* ── Header ── */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:24 }}>
         <div>
-          <h2 style={{ fontSize:22, fontWeight:800, color:"#0f172a", margin:0 }}>✅ Attendance Tracker</h2>
           <p style={{ fontSize:13, color:"#64748b", marginTop:4 }}>90-day course · Mark attendance manually by date</p>
         </div>
         {/* View toggle */}
