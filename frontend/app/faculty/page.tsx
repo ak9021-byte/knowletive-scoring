@@ -533,7 +533,7 @@ export default function FacultyPage() {
 
         {/* MOBILE HEADER */}
         <div className="mobile-bar">
-          <img src="/logo.png" alt="Knowletive" style={{ height:70, objectFit:"contain" }} />
+          <img src="/logo.png" alt="Knowletive" style={{ height:80, objectFit:"contain" }} />
           <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background:"#f1f5f9", border:"1px solid var(--border)", borderRadius:8, padding:"8px 12px", cursor:"pointer", fontSize:18 }}>☰</button>
         </div>
 
