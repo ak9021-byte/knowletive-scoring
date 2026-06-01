@@ -398,7 +398,7 @@ export default function FacultyPage() {
         .layout { display:flex; min-height:100vh; }
         .sidebar { width:256px; min-height:100vh; flex-shrink:0; background:var(--white); border-right:1px solid var(--border); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; box-shadow:2px 0 12px rgba(91,94,244,0.04); }
         .brand-zone { padding:24px 20px 18px; border-bottom:1px solid var(--border); background:linear-gradient(135deg,#f8f7ff 0%,#ffffff 100%); }
-        .brand-logo { height:42px; width:auto; object-fit:contain; }
+        .brand-logo { height:64px; width:auto; object-fit:contain; }
         .brand-tag { font-size:10px; letter-spacing:2px; color:var(--faint); text-transform:uppercase; margin-top:6px; font-weight:600; }
         .nav-area { padding:16px 12px; flex:1; min-height:0; display:flex; flex-direction:column; gap:3px; overflow-y:auto; }
         .nav-label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--faint); font-weight:700; padding:0 10px; margin:8px 0 6px; }
@@ -533,7 +533,7 @@ export default function FacultyPage() {
 
         {/* MOBILE HEADER */}
         <div className="mobile-bar">
-          <img src="/logo.png" alt="Knowletive" style={{ height:32, objectFit:"contain" }} />
+          <img src="/logo.png" alt="Knowletive" style={{ height:48, objectFit:"contain" }} />
           <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background:"#f1f5f9", border:"1px solid var(--border)", borderRadius:8, padding:"8px 12px", cursor:"pointer", fontSize:18 }}>☰</button>
         </div>
 
