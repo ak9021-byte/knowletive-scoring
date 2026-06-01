@@ -4,7 +4,7 @@ import { useToast } from "@/lib/useToast"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import AttendanceTracker from "@/components/AttendanceTracker"
-import DailyActivity from "@/components/DailyActivity"
+import DailyActivity from "@/components/Dailyactivity"
 import {
   getStudents, createStudent, deleteStudent,
   getLeaderboard, getStudentOfDay, submitScore,

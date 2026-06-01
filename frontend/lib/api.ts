@@ -69,3 +69,16 @@ export const parseAttendanceCSV = (csv: string) => {
 
   return { headers: headers.slice(1), students }
 }
+
+// Daily Activity
+export const createActivity = (data: { date: string; name: string }) =>
+  API.post("/activities/", data)
+
+export const getActivities = (date: string) =>
+  API.get(`/activities/?date=${date}`)
+
+export const markActivityStatus = (data: { activity_id: number; student_name: string; status: "Y" | "N" | "" }) =>
+  API.post("/activities/mark", data)
+
+export const getActivityHistory = () =>
+  API.get("/activities/history")

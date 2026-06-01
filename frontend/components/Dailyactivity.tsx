@@ -1,13 +1,12 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getStudents, submitScore, getLeaderboard } from "@/lib/api"
+import { getStudents } from "@/lib/api"
 
 type ActivityStatus = "Y" | "N" | ""
 type ActivityMap = Record<string, Record<string, Record<string, ActivityStatus>>>
 // { date: { activityName: { studentName: "Y"|"N"|"" } } }
 
 const TOTAL_DAYS = 90
-const STUDENTS_KEY = "da_students_v1"
 const ACTIVITY_KEY = "da_activity_v1"
 
 const today = () => new Date().toISOString().split("T")[0]
@@ -33,37 +32,27 @@ export default function DailyActivity() {
   const [actDate, setActDate] = useState(today())
   const [actName, setActName] = useState("")
   const [newActName, setNewActName] = useState("")
-  const [newStudent, setNewStudent] = useState("")
-  const [showAddStudent, setShowAddStudent] = useState(false)
   const [view, setView] = useState<"entry" | "history">("entry")
+  const [loading, setLoading] = useState(true)
 
+  // ✅ Load students from backend API
+  useEffect(() => {
+    getStudents()
+      .then(res => setStudents(res.data.map((s: any) => s.name)))
+      .catch(() => setStudents([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  // ✅ Load activity data from localStorage
   useEffect(() => {
     try {
-      const s = localStorage.getItem(STUDENTS_KEY)
       const a = localStorage.getItem(ACTIVITY_KEY)
-      if (s) setStudents(JSON.parse(s))
       if (a) setActivities(JSON.parse(a))
     } catch {}
   }, [])
 
-  const persist = (s: string[], a: ActivityMap) => {
-    localStorage.setItem(STUDENTS_KEY, JSON.stringify(s))
+  const persistActivities = (a: ActivityMap) => {
     localStorage.setItem(ACTIVITY_KEY, JSON.stringify(a))
-  }
-
-  const addStudent = () => {
-    const name = newStudent.trim()
-    if (!name || students.includes(name)) return
-    const updated = [...students, name]
-    setStudents(updated)
-    setNewStudent("")
-    persist(updated, activities)
-  }
-
-  const removeStudent = (name: string) => {
-    const updated = students.filter(s => s !== name)
-    setStudents(updated)
-    persist(updated, activities)
   }
 
   const addActivity = () => {
@@ -79,7 +68,7 @@ export default function DailyActivity() {
     setActivities(updAc)
     setActName(name)
     setNewActName("")
-    persist(students, updAc)
+    persistActivities(updAc)
   }
 
   const cycleStatus = (student: string) => {
@@ -97,7 +86,7 @@ export default function DailyActivity() {
       },
     }
     setActivities(updAc)
-    persist(students, updAc)
+    persistActivities(updAc)
   }
 
   const markAll = (status: ActivityStatus) => {
@@ -110,23 +99,12 @@ export default function DailyActivity() {
       },
     }
     setActivities(updAc)
-    persist(students, updAc)
+    persistActivities(updAc)
   }
 
   const activitiesOnDate = Object.keys(activities[actDate] || {})
   const allDates = Object.keys(activities).sort().reverse()
   const totalActivities = allDates.reduce((sum, d) => sum + Object.keys(activities[d] || {}).length, 0)
-
-  const studentYPct = (name: string) => {
-    let Y = 0, total = 0
-    allDates.forEach(d => {
-      Object.keys(activities[d] || {}).forEach(a => {
-        const s = activities[d][a][name]
-        if (s === "Y" || s === "N") { total++; if (s === "Y") Y++ }
-      })
-    })
-    return total > 0 ? Math.round((Y / total) * 100) : 0
-  }
 
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
@@ -154,9 +132,9 @@ export default function DailyActivity() {
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
         {[
-          { label: "Total Students",    value: students.length,    icon: "👥", color: "#6366f1", bg: "#eef0ff" },
-          { label: "Total Activities",  value: totalActivities,    icon: "⚡", color: "#059669", bg: "#ecfdf5" },
-          { label: "Days Tracked",      value: `${allDates.length} / ${TOTAL_DAYS}`, icon: "📅", color: "#d97706", bg: "#fffbeb" },
+          { label: "Total Students",   value: loading ? "..." : students.length, icon: "👥", color: "#6366f1", bg: "#eef0ff" },
+          { label: "Total Activities", value: totalActivities,                   icon: "⚡", color: "#059669", bg: "#ecfdf5" },
+          { label: "Days Tracked",     value: `${allDates.length} / ${TOTAL_DAYS}`, icon: "📅", color: "#d97706", bg: "#fffbeb" },
         ].map(s => (
           <div key={s.label} style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 16, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.color, borderRadius: "16px 16px 0 0" }} />
@@ -167,34 +145,26 @@ export default function DailyActivity() {
         ))}
       </div>
 
-      {/* Manage Students */}
+      {/* Students list (read-only, from backend) */}
       <div style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 14, padding: 18, marginBottom: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showAddStudent ? 14 : 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>👤 Students ({students.length})</div>
-          <button onClick={() => setShowAddStudent(p => !p)} style={{ padding: "8px 16px", borderRadius: 9, border: "1.5px solid #5b5ef4", background: "#eef0ff", color: "#5b5ef4", fontWeight: 700, fontSize: 13, fontFamily: "inherit", cursor: "pointer" }}>
-            {showAddStudent ? "✕ Cancel" : "+ Add Student"}
-          </button>
+        <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a", marginBottom: 12 }}>
+          👤 Students ({loading ? "..." : students.length})
+          <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500, marginLeft: 10 }}>Manage students in the Students tab</span>
         </div>
-        {showAddStudent && (
-          <div style={{ display: "flex", gap: 10 }}>
-            <input value={newStudent} onChange={e => setNewStudent(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addStudent()}
-              placeholder="Full name of student..."
-              style={{ flex: 1, padding: "10px 14px", border: "1.5px solid #e5e9f5", borderRadius: 10, fontSize: 14, fontFamily: "inherit", outline: "none", color: "#0f172a" }}
-              autoFocus />
-            <button onClick={addStudent} style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#5b5ef4,#818cf8)", color: "#fff", fontWeight: 700, fontSize: 14, fontFamily: "inherit", cursor: "pointer" }}>Add</button>
-          </div>
-        )}
-        {/* Student chips */}
-        {students.length > 0 && !showAddStudent && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+        {loading ? (
+          <div style={{ fontSize: 13, color: "#94a3b8" }}>Loading students...</div>
+        ) : students.length === 0 ? (
+          <div style={{ fontSize: 13, color: "#94a3b8" }}>No students found. Add them in the Students tab first.</div>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {students.map((name, i) => {
               const [g1,g2] = avatarColors[i % avatarColors.length]
               return (
                 <div key={name} style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 10px", borderRadius: 20, border: "1px solid #e5e9f5", background: "#fafbff", fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 6, background: `linear-gradient(135deg,${g1},${g2})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#fff" }}>{name.charAt(0).toUpperCase()}</div>
+                  <div style={{ width: 22, height: 22, borderRadius: 6, background: `linear-gradient(135deg,${g1},${g2})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#fff" }}>
+                    {name.charAt(0).toUpperCase()}
+                  </div>
                   {name}
-                  <button onClick={() => removeStudent(name)} style={{ background: "none", border: "none", cursor: "pointer", color: "#fca5a5", fontSize: 13, padding: 0, marginLeft: 2 }}>✕</button>
                 </div>
               )
             })}
@@ -246,7 +216,7 @@ export default function DailyActivity() {
           {students.length === 0 ? (
             <div style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 16, padding: "60px 24px", textAlign: "center" }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
-              <p style={{ color: "#64748b", fontSize: 15 }}>Add students above to get started</p>
+              <p style={{ color: "#64748b", fontSize: 15 }}>{loading ? "Loading students..." : "No students found. Add them in the Students tab first."}</p>
             </div>
           ) : !actName ? (
             <div style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 16, padding: "60px 24px", textAlign: "center" }}>
