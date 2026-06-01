@@ -4,7 +4,6 @@ import { getStudents } from "@/lib/api"
 
 type ActivityStatus = "Y" | "N" | ""
 type ActivityMap = Record<string, Record<string, Record<string, ActivityStatus>>>
-// { date: { activityName: { studentName: "Y"|"N"|"" } } }
 
 const TOTAL_DAYS = 90
 const ACTIVITY_KEY = "da_activity_v1"
@@ -35,7 +34,7 @@ export default function DailyActivity() {
   const [view, setView] = useState<"entry" | "history">("entry")
   const [loading, setLoading] = useState(true)
 
-  // ✅ Load students from backend API
+  // Load students from backend API
   useEffect(() => {
     getStudents()
       .then(res => setStudents(res.data.map((s: any) => s.name)))
@@ -43,7 +42,7 @@ export default function DailyActivity() {
       .finally(() => setLoading(false))
   }, [])
 
-  // ✅ Load activity data from localStorage
+  // Load activity data from localStorage
   useEffect(() => {
     try {
       const a = localStorage.getItem(ACTIVITY_KEY)
@@ -68,6 +67,26 @@ export default function DailyActivity() {
     setActivities(updAc)
     setActName(name)
     setNewActName("")
+    persistActivities(updAc)
+  }
+
+  const renameActivity = (oldName: string) => {
+    const newName = prompt("Rename activity:", oldName)
+    if (!newName || newName.trim() === oldName || !newName.trim()) return
+    const updAc = { ...activities }
+    updAc[actDate][newName.trim()] = updAc[actDate][oldName]
+    delete updAc[actDate][oldName]
+    setActivities(updAc)
+    setActName(newName.trim())
+    persistActivities(updAc)
+  }
+
+  const deleteActivity = (name: string) => {
+    if (!confirm(`Delete activity "${name}"?`)) return
+    const updAc = { ...activities }
+    delete updAc[actDate][name]
+    setActivities(updAc)
+    if (actName === name) setActName("")
     persistActivities(updAc)
   }
 
@@ -109,17 +128,8 @@ export default function DailyActivity() {
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
 
-    
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>
-        <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>⚡ Daily Activity</h2>
-          <p style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Track student participation in daily activities · 90-day course</p>
-        </div>
-        <div style={{ display: "flex", gap: 6, background: "#f1f5f9", padding: 4, borderRadius: 12 }}>
-          ...Entry/History buttons...
-        </div>
-      </div>
+      {/* Entry / History toggle */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 6, background: "#f1f5f9", padding: 4, borderRadius: 12 }}>
           {([["entry","📝 Entry"],["history","📋 History"]] as const).map(([v,l]) => (
             <button key={v} onClick={() => setView(v)} style={{
@@ -150,7 +160,7 @@ export default function DailyActivity() {
         ))}
       </div>
 
-      {/* Students list (read-only, from backend) */}
+      {/* Students list — read only from backend */}
       <div style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 14, padding: 18, marginBottom: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
         <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a", marginBottom: 12 }}>
           👤 Students ({loading ? "..." : students.length})
@@ -200,18 +210,43 @@ export default function DailyActivity() {
               </div>
             </div>
 
-            {/* Activity tabs */}
+            {/* Activity tabs with edit + delete */}
             {activitiesOnDate.length > 0 && (
               <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" as const, marginBottom: 8 }}>Activities on {fmtDate(actDate)}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" as const, marginBottom: 8 }}>
+                  Activities on {fmtDate(actDate)}
+                </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {activitiesOnDate.map(a => (
-                    <button key={a} onClick={() => setActName(a)} style={{
-                      padding: "7px 16px", borderRadius: 20, cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "inherit",
+                    <div key={a} style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      padding: "5px 10px 5px 14px", borderRadius: 20,
                       border: `1.5px solid ${actName === a ? "#5b5ef4" : "#e5e9f5"}`,
                       background: actName === a ? "#eef0ff" : "#fff",
-                      color: actName === a ? "#5b5ef4" : "#64748b",
-                    }}>{a}</button>
+                    }}>
+                      {/* Select activity */}
+                      <span onClick={() => setActName(a)} style={{
+                        cursor: "pointer", fontWeight: 700, fontSize: 13,
+                        color: actName === a ? "#5b5ef4" : "#64748b",
+                        userSelect: "none" as const,
+                      }}>{a}</span>
+
+                      {/* Edit / Rename */}
+                      <button
+                        onClick={() => renameActivity(a)}
+                        title="Rename activity"
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, padding: "0 3px", color: "#94a3b8", lineHeight: 1 }}>
+                        ✏️
+                      </button>
+
+                      {/* Delete */}
+                      <button
+                        onClick={() => deleteActivity(a)}
+                        title="Delete activity"
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, padding: "0 3px", color: "#fca5a5", lineHeight: 1, fontWeight: 700 }}>
+                        ✕
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -271,7 +306,7 @@ export default function DailyActivity() {
                           <td style={{ padding: "12px 20px", textAlign: "center", color: "#94a3b8", fontSize: 12 }}>{fmtDate(actDate)}</td>
                           <td style={{ padding: "12px 20px", textAlign: "center" }}>
                             <div onClick={() => cycleStatus(name)}
-                              style={{ width: 40, height: 40, borderRadius: 10, background: st.bg, border: `2px solid ${st.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: st.color, cursor: "pointer", margin: "0 auto", transition: "all 0.15s", userSelect: "none" }}>
+                              style={{ width: 40, height: 40, borderRadius: 10, background: st.bg, border: `2px solid ${st.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: st.color, cursor: "pointer", margin: "0 auto", transition: "all 0.15s", userSelect: "none" as const }}>
                               {s || "—"}
                             </div>
                           </td>
