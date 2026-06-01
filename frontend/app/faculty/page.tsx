@@ -803,7 +803,6 @@ export default function FacultyPage() {
             <div style={{ maxWidth:900 }}>
               <div className="page-header fu">
                 <h1 className="page-title">✅ Attendance Tracker</h1>
-                <p className="page-sub">Sync from HR's Google Sheet and view student attendance</p>
               </div>
               <AttendanceTracker />
             </div>
