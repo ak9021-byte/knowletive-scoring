@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
+import { getStudents, submitScore, getLeaderboard } from "@/lib/api"
 
 type ActivityStatus = "Y" | "N" | ""
 type ActivityMap = Record<string, Record<string, Record<string, ActivityStatus>>>

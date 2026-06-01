@@ -400,14 +400,14 @@ export default function FacultyPage() {
         .brand-zone { padding:24px 20px 18px; border-bottom:1px solid var(--border); background:linear-gradient(135deg,#f8f7ff 0%,#ffffff 100%); }
         .brand-logo { height:42px; width:auto; object-fit:contain; }
         .brand-tag { font-size:10px; letter-spacing:2px; color:var(--faint); text-transform:uppercase; margin-top:6px; font-weight:600; }
-        .nav-area { padding:16px 12px; flex:1; display:flex; flex-direction:column; gap:3px; overflow-y:auto; }
+        .nav-area { padding:16px 12px; flex:1; min-height:0; display:flex; flex-direction:column; gap:3px; overflow-y:auto; }
         .nav-label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--faint); font-weight:700; padding:0 10px; margin:8px 0 6px; }
         .nav-item { display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:var(--radius-sm); border:1px solid transparent; cursor:pointer; font-size:13.5px; font-weight:600; transition:all 0.18s; color:var(--muted); background:none; font-family:var(--font); text-align:left; width:100%; }
         .nav-item:hover { color:var(--text); background:#f8f9fe; border-color:var(--border); }
         .nav-item.active { color:var(--accent); background:var(--accent-light); border-color:rgba(91,94,244,0.18); }
         .nav-emoji { font-size:17px; }
         .nav-dot { margin-left:auto; width:6px; height:6px; border-radius:50%; background:var(--accent); }
-        .sidebar-footer { padding:14px 12px; border-top:1px solid var(--border); }
+        .sidebar-footer { padding:14px 12px; border-top:1px solid var(--border); flex-shrink: 0; }
         .faculty-badge { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#f8f9fe; border-radius:var(--radius-sm); border:1px solid var(--border); margin-bottom:10px; }
         .faculty-avatar { width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--accent),#818cf8); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; color:#fff; flex-shrink:0; }
         .faculty-name { font-size:13px; font-weight:700; color:var(--text); }
