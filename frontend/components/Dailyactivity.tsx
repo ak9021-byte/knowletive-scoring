@@ -109,12 +109,17 @@ export default function DailyActivity() {
   return (
     <div style={{ fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
 
+    
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>
         <div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>⚡ Daily Activity</h2>
           <p style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Track student participation in daily activities · 90-day course</p>
         </div>
+        <div style={{ display: "flex", gap: 6, background: "#f1f5f9", padding: 4, borderRadius: 12 }}>
+          ...Entry/History buttons...
+        </div>
+      </div>
         <div style={{ display: "flex", gap: 6, background: "#f1f5f9", padding: 4, borderRadius: 12 }}>
           {([["entry","📝 Entry"],["history","📋 History"]] as const).map(([v,l]) => (
             <button key={v} onClick={() => setView(v)} style={{
