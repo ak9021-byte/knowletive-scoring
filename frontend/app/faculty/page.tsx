@@ -4,6 +4,7 @@ import { useToast } from "@/lib/useToast"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import AttendanceTracker from "@/components/AttendanceTracker"
+import DailyActivity from "@/components/DailyActivity"
 import {
   getStudents, createStudent, deleteStudent,
   getLeaderboard, getStudentOfDay, submitScore,
@@ -313,6 +314,7 @@ export default function FacultyPage() {
     { id:"rewards",    icon:"🎖️", label:"Rewards"     },
     { id:"analytics",  icon:"📈", label:"Analytics"   },
     { id:"attendance", icon:"✅", label:"Attendance" },
+    { id:"activity", icon:"⚡", label:"Daily Activity" },
   ]
 
   const dashAvg = dashLeaderboard.length > 0
@@ -804,6 +806,17 @@ export default function FacultyPage() {
                 <p className="page-sub">Sync from HR's Google Sheet and view student attendance</p>
               </div>
               <AttendanceTracker />
+            </div>
+          )}
+
+          {/* ══ DAILY ACTIVITY ══ */}
+          {tab === "activity" && (
+            <div style={{ maxWidth:900 }}>
+              <div className="page-header fu">
+                <h1 className="page-title">⚡ Daily Activity</h1>
+                <p className="page-sub">Track student participation in daily activities</p>
+              </div>
+              <DailyActivity />
             </div>
           )}
 
