@@ -36,6 +36,20 @@ const emptyScoreForm = () => ({
   technical: 0, behavior: 0, initiative: 0,
 })
 
+// ── Draft helpers ──────────────────────────────────────────
+const saveFormDraft = (period: string, form: any) => {
+  try { localStorage.setItem(`score_draft_${period}`, JSON.stringify(form)) } catch {}
+}
+const loadFormDraft = (period: string) => {
+  try {
+    const saved = localStorage.getItem(`score_draft_${period}`)
+    return saved ? JSON.parse(saved) : emptyScoreForm()
+  } catch { return emptyScoreForm() }
+}
+const clearFormDraft = (period: string) => {
+  try { localStorage.removeItem(`score_draft_${period}`) } catch {}
+}
+
 const tierInfo = (t: number) =>
   t >= 90 ? { label: "🔮 Pro",       color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" }
   : t >= 75 ? { label: "💎 Skilled", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" }
@@ -59,13 +73,9 @@ function StreakBadge({ streak, size = "sm" }: { streak: number; size?: "sm" | "m
   const c = streakColor(streak)
   return (
     <span style={{
-      fontSize: size === "md" ? 12 : 11,
-      fontWeight: 700,
-      background: c.bg,
-      color: c.color,
-      border: `1px solid ${c.border}`,
-      borderRadius: 20,
-      padding: size === "md" ? "4px 12px" : "3px 10px",
+      fontSize: size === "md" ? 12 : 11, fontWeight: 700,
+      background: c.bg, color: c.color, border: `1px solid ${c.border}`,
+      borderRadius: 20, padding: size === "md" ? "4px 12px" : "3px 10px",
       whiteSpace: "nowrap" as const,
     }}>
       🔥 {streak} day{streak !== 1 ? "s" : ""} streak
@@ -152,11 +162,7 @@ function LeaderboardList({ data, period, streaks = {} }: { data: any[]; period: 
             <span className="lb-rank">{rankEmoji(i)}</span>
             <div style={{ flex:1 }}>
               <div className="lb-name">{e.name}</div>
-              {streak > 0 && (
-                <div style={{ marginTop:4 }}>
-                  <StreakBadge streak={streak} />
-                </div>
-              )}
+              {streak > 0 && <div style={{ marginTop:4 }}><StreakBadge streak={streak} /></div>}
             </div>
             <div className="lb-bar-wrap">
               <div className="lb-bar" style={{ width:`${Math.min((e.total / (period === "daily" ? 100 : 700)) * 100, 100)}%`, background:t.color }} />
@@ -176,7 +182,18 @@ function LeaderboardList({ data, period, streaks = {} }: { data: any[]; period: 
 export default function FacultyPage() {
   const router = useRouter()
   const { toasts, showToast, removeToast } = useToast()
+
+  // ── Tab persisted to localStorage ──
   const [tab, setTab] = useState("dashboard")
+  useEffect(() => {
+    const saved = localStorage.getItem("faculty_tab")
+    if (saved) setTab(saved)
+  }, [])
+  const handleTabChange = (tabId: string) => {
+    setTab(tabId)
+    localStorage.setItem("faculty_tab", tabId)
+  }
+
   const [students, setStudents] = useState<any[]>([])
   const [studentOfDay, setStudentOfDay] = useState<any>(null)
   const [rewards, setRewards] = useState<any[]>([])
@@ -191,20 +208,27 @@ export default function FacultyPage() {
   const [rewardPeriod, setRewardPeriod] = useState<Period>("daily")
   const [dashLeaderboard, setDashLeaderboard] = useState<any[]>([])
   const [scoreLeaderboard, setScoreLeaderboard] = useState<any[]>([])
-  const [dailyForm,   setDailyForm]   = useState(emptyScoreForm())
-  const [weeklyForm,  setWeeklyForm]  = useState(emptyScoreForm())
-  const [monthlyForm, setMonthlyForm] = useState(emptyScoreForm())
   const [streaks, setStreaks] = useState<Record<number, number>>({})
 
-  // Analytics state
+  // ── Score forms — loaded from localStorage drafts ──
+  const [dailyForm,   setDailyFormRaw]   = useState(() => loadFormDraft("daily"))
+  const [weeklyForm,  setWeeklyFormRaw]  = useState(() => loadFormDraft("weekly"))
+  const [monthlyForm, setMonthlyFormRaw] = useState(() => loadFormDraft("monthly"))
+
+  // Wrappers that also save drafts
+  const setDailyForm   = (u: any) => { setDailyFormRaw(u);   setDailyFormRaw((v: any) => { saveFormDraft("daily",   v); return v }) }
+  const setWeeklyForm  = (u: any) => { setWeeklyFormRaw(u);  setWeeklyFormRaw((v: any) => { saveFormDraft("weekly",  v); return v }) }
+  const setMonthlyForm = (u: any) => { setMonthlyFormRaw(u); setMonthlyFormRaw((v: any) => { saveFormDraft("monthly", v); return v }) }
+
+  const formByPeriod    = { daily: dailyForm,    weekly: weeklyForm,    monthly: monthlyForm    }
+  const setFormByPeriod: Record<string, any> = { daily: setDailyForm, weekly: setWeeklyForm, monthly: setMonthlyForm }
+
+  // Analytics
   const [analytics, setAnalytics] = useState<any[]>([])
   const [analyticsDays, setAnalyticsDays] = useState(7)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [expandedStudent, setExpandedStudent] = useState<number|null>(null)
   const [customDays, setCustomDays] = useState("")
-
-  const formByPeriod    = { daily: dailyForm,    weekly: weeklyForm,    monthly: monthlyForm    }
-  const setFormByPeriod = { daily: setDailyForm,  weekly: setWeeklyForm, monthly: setMonthlyForm }
 
   useEffect(() => {
     if (!localStorage.getItem("faculty_auth")) { router.push("/login"); return }
@@ -239,10 +263,7 @@ export default function FacultyPage() {
 
   const fetchAnalytics = async (days: number) => {
     setAnalyticsLoading(true)
-    try {
-      const res = await getAllAverages(days)
-      setAnalytics(res.data)
-    } catch {}
+    try { const res = await getAllAverages(days); setAnalytics(res.data) } catch {}
     setAnalyticsLoading(false)
   }
 
@@ -267,6 +288,7 @@ export default function FacultyPage() {
       await submitScore({ ...form, student_id: Number(form.student_id), total, score_type: period })
       fetchBase(); fetchLeaderboard(period, "score"); fetchStreaks()
       showToast("Score submitted successfully! 🚀", "success")
+      clearFormDraft(period)
       setForm(emptyScoreForm())
     } catch (err: any) {
       const msg = err?.response?.data?.detail || "Error submitting score!"
@@ -299,8 +321,7 @@ export default function FacultyPage() {
         student_id: Number(suggestionStudentId),
         date: new Date().toISOString().split("T")[0],
         attendance:0, speak_up:0, activity:0, technical:0, behavior:0, initiative:0,
-        total:0, suggestion,
-        score_type: "daily",
+        total:0, suggestion, score_type: "daily",
       })
       setSuggestion(""); setSuggestionStudentId("")
       showToast("Feedback sent successfully! 💬", "success")
@@ -308,51 +329,70 @@ export default function FacultyPage() {
   }
 
   const navTabs = [
-    { id:"dashboard",  icon:"🏠", label:"Dashboard"  },
-    { id:"score",      icon:"📝", label:"Score Entry" },
-    { id:"students",   icon:"👥", label:"Students"    },
-    { id:"leaderboard",icon:"🏆", label:"Leaderboard" },
-    { id:"rewards",    icon:"🎖️", label:"Rewards"     },
-    { id:"analytics",  icon:"📈", label:"Analytics"   },
-    { id:"attendance", icon:"✅", label:"Attendance" },
-    { id:"activity", icon:"⚡", label:"Daily Activity" },
-    { id:"study", icon:"📚", label:"Study Material" },
+    { id:"dashboard",  icon:"🏠", label:"Dashboard"      },
+    { id:"score",      icon:"📝", label:"Score Entry"    },
+    { id:"students",   icon:"👥", label:"Students"       },
+    { id:"leaderboard",icon:"🏆", label:"Leaderboard"   },
+    { id:"rewards",    icon:"🎖️", label:"Rewards"        },
+    { id:"analytics",  icon:"📈", label:"Analytics"      },
+    { id:"attendance", icon:"✅", label:"Attendance"     },
+    { id:"activity",   icon:"⚡", label:"Daily Activity" },
+    { id:"study",      icon:"📚", label:"Study Material" },
   ]
 
   const dashAvg = dashLeaderboard.length > 0
     ? Math.round(dashLeaderboard.reduce((a,b) => a + b.total, 0) / dashLeaderboard.length) : 0
   const periodLabel = (p: Period) => p === "daily" ? "Today" : p === "weekly" ? "This Week" : "This Month"
 
-  // Top streak student
-  const topStreakEntry = Object.entries(streaks).sort((a,b) => b[1] - a[1])[0]
+  const topStreakEntry   = Object.entries(streaks).sort((a,b) => b[1] - a[1])[0]
   const topStreakStudent = topStreakEntry ? students.find(s => s.id === Number(topStreakEntry[0])) : null
-  const topStreakDays = topStreakEntry ? topStreakEntry[1] : 0
+  const topStreakDays    = topStreakEntry ? topStreakEntry[1] : 0
 
   const ScoreEntryForm = ({ period }: { period: Period }) => {
     const form    = formByPeriod[period]
     const setForm = setFormByPeriod[period]
     const total   = Object.keys(scoreMax).reduce((sum, k) => sum + Number((form as any)[k]), 0)
     const tier    = tierInfo(total)
+
+    // draft-aware setter
+    const setFormWithDraft = (updater: any) => {
+      setForm((prev: any) => {
+        const next = typeof updater === "function" ? updater(prev) : updater
+        saveFormDraft(period, next)
+        return next
+      })
+    }
+
     return (
       <div className="card fu fu1">
+        {/* Draft indicator */}
+        {(form.student_id || Object.keys(scoreMax).some(k => (form as any)[k] > 0)) && (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 14px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:9, marginBottom:18, fontSize:12, fontWeight:600, color:"#b45309" }}>
+            <span>📝 Draft saved — your progress is preserved on refresh</span>
+            <button onClick={() => { clearFormDraft(period); setForm(emptyScoreForm()) }}
+              style={{ background:"none", border:"none", cursor:"pointer", color:"#dc2626", fontWeight:700, fontSize:12, fontFamily:"inherit" }}>
+              ✕ Clear
+            </button>
+          </div>
+        )}
         <div className="sec-label">👤 Student & Date</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:28 }}>
           <div>
             <label className="field-label">Student</label>
-            <select className="f-input" value={form.student_id} onChange={e => setForm((p: any) => ({ ...p, student_id: e.target.value }))}>
+            <select className="f-input" value={form.student_id} onChange={e => setFormWithDraft((p: any) => ({ ...p, student_id: e.target.value }))}>
               <option value="">— Select student —</option>
               {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div>
             <label className="field-label">Date</label>
-            <input className="f-input" type="date" value={form.date} onChange={e => setForm((p: any) => ({ ...p, date: e.target.value }))} />
+            <input className="f-input" type="date" value={form.date} onChange={e => setFormWithDraft((p: any) => ({ ...p, date: e.target.value }))} />
           </div>
         </div>
         <div className="sec-label">⚡ Performance Metrics</div>
         <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:28 }}>
           {Object.keys(scoreMax).map(key => (
-            <MetricRow key={key} metricKey={key} form={form} setForm={setForm} />
+            <MetricRow key={key} metricKey={key} form={form} setForm={setFormWithDraft} />
           ))}
         </div>
         <div className="total-box">
@@ -409,7 +449,7 @@ export default function FacultyPage() {
         .nav-item.active { color:var(--accent); background:var(--accent-light); border-color:rgba(91,94,244,0.18); }
         .nav-emoji { font-size:17px; }
         .nav-dot { margin-left:auto; width:6px; height:6px; border-radius:50%; background:var(--accent); }
-        .sidebar-footer { padding:14px 12px; border-top:1px solid var(--border); flex-shrink: 0; }
+        .sidebar-footer { padding:14px 12px; border-top:1px solid var(--border); flex-shrink:0; }
         .faculty-badge { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#f8f9fe; border-radius:var(--radius-sm); border:1px solid var(--border); margin-bottom:10px; }
         .faculty-avatar { width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,var(--accent),#818cf8); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; color:#fff; flex-shrink:0; }
         .faculty-name { font-size:13px; font-weight:700; color:var(--text); }
@@ -512,7 +552,7 @@ export default function FacultyPage() {
           <nav className="nav-area">
             <div className="nav-label">Navigation</div>
             {navTabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`nav-item ${tab === t.id ? "active" : ""}`}>
+              <button key={t.id} onClick={() => handleTabChange(t.id)} className={`nav-item ${tab === t.id ? "active" : ""}`}>
                 <span className="nav-emoji">{t.icon}</span>
                 {t.label}
                 {tab === t.id && <span className="nav-dot" />}
@@ -527,7 +567,7 @@ export default function FacultyPage() {
                 <div className="faculty-role">Instructor</div>
               </div>
             </div>
-            <button className="logout-btn" onClick={() => { localStorage.removeItem("faculty_auth"); router.push("/login") }}>
+            <button className="logout-btn" onClick={() => { localStorage.removeItem("faculty_auth"); localStorage.removeItem("faculty_tab"); router.push("/login") }}>
               🚪 Sign out
             </button>
           </div>
@@ -544,7 +584,7 @@ export default function FacultyPage() {
           <div style={{ position:"fixed", inset:0, zIndex:100, background:"rgba(0,0,0,0.4)", display:"flex" }} onClick={() => setSidebarOpen(false)}>
             <div style={{ width:264, background:"#fff", height:"100%", padding:"80px 12px 24px", boxShadow:"4px 0 24px rgba(0,0,0,0.12)" }} onClick={e => e.stopPropagation()}>
               {navTabs.map(t => (
-                <button key={t.id} onClick={() => { setTab(t.id); setSidebarOpen(false) }} className={`nav-item ${tab === t.id ? "active" : ""}`} style={{ marginBottom:3 }}>
+                <button key={t.id} onClick={() => { handleTabChange(t.id); setSidebarOpen(false) }} className={`nav-item ${tab === t.id ? "active" : ""}`} style={{ marginBottom:3 }}>
                   <span className="nav-emoji">{t.icon}</span>{t.label}
                 </button>
               ))}
@@ -568,10 +608,7 @@ export default function FacultyPage() {
                   </div>
                 </div>
               </div>
-
               <PeriodSelector active={dashPeriod} onChange={handleDashPeriod} />
-
-              {/* 🔥 Top Streak Banner */}
               {topStreakStudent && topStreakDays > 0 && (
                 <div className="streak-banner fu fu1">
                   <span className="streak-fire" style={{ fontSize:36 }}>🔥</span>
@@ -586,7 +623,6 @@ export default function FacultyPage() {
                   </div>
                 </div>
               )}
-
               {studentOfDay && dashPeriod === "daily" && (
                 <div className="sod-card fu fu1">
                   <span className="sod-icon">⭐</span>
@@ -601,7 +637,6 @@ export default function FacultyPage() {
                   </div>
                 </div>
               )}
-
               <div className="stats-row fu fu2">
                 {[
                   { label:"Total Students",                    value:students.length,        icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
@@ -616,7 +651,6 @@ export default function FacultyPage() {
                   </div>
                 ))}
               </div>
-
               <div className="card fu fu3">
                 <div className="sec-label">🏆 {periodLabel(dashPeriod)}'s Top Performers</div>
                 <LeaderboardList data={dashLeaderboard.slice(0,5)} period={dashPeriod} streaks={streaks} />
@@ -820,7 +854,7 @@ export default function FacultyPage() {
               <DailyActivity />
             </div>
           )}
-          
+
           {/* ══ STUDY MATERIAL ══ */}
           {tab === "study" && (
             <div style={{ maxWidth:900 }}>
@@ -851,18 +885,10 @@ export default function FacultyPage() {
                     ))}
                   </div>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
-                    <input
-                      type="number" min={1} max={365} placeholder="Custom"
-                      value={customDays}
+                    <input type="number" min={1} max={365} placeholder="Custom" value={customDays}
                       onChange={e => setCustomDays(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") {
-                          const v = parseInt(customDays)
-                          if (v > 0) { setAnalyticsDays(v); fetchAnalytics(v) }
-                        }
-                      }}
-                      style={{ width:90, padding:"9px 12px", borderRadius:10, border:"1.5px solid var(--border)", fontSize:13, fontFamily:"var(--font)", outline:"none", color:"var(--text)" }}
-                    />
+                      onKeyDown={e => { if (e.key === "Enter") { const v = parseInt(customDays); if (v > 0) { setAnalyticsDays(v); fetchAnalytics(v) } } }}
+                      style={{ width:90, padding:"9px 12px", borderRadius:10, border:"1.5px solid var(--border)", fontSize:13, fontFamily:"var(--font)", outline:"none", color:"var(--text)" }} />
                     <button onClick={() => { const v=parseInt(customDays); if(v>0){setAnalyticsDays(v);fetchAnalytics(v)} }}
                       style={{ padding:"9px 16px", borderRadius:10, border:"1.5px solid var(--accent)", background:"var(--accent-light)", color:"var(--accent)", cursor:"pointer", fontWeight:700, fontSize:13, fontFamily:"var(--font)" }}>
                       Apply
@@ -872,9 +898,9 @@ export default function FacultyPage() {
               </div>
               <div className="stats-row fu fu2">
                 {[
-                  { label:"Total Students",      value:analytics.length,                          icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
-                  { label:"Active Students",      value:analytics.filter(a=>a.sessions>0).length, icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
-                  { label:`Class Avg (${analyticsDays}d)`, value:classAvg,                        icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
+                  { label:"Total Students",             value:analytics.length,                          icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
+                  { label:"Active Students",             value:analytics.filter(a=>a.sessions>0).length, icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
+                  { label:`Class Avg (${analyticsDays}d)`, value:classAvg,                               icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
                 ].map(s => (
                   <div key={s.label} className="stat-card">
                     <div className="stat-card-accent" style={{ background:s.accent }} />
@@ -942,12 +968,8 @@ export default function FacultyPage() {
                                     return (
                                       <div key={cat.key} className="cat-card">
                                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                                          <span style={{ fontSize:13, fontWeight:600, color:"var(--text)", display:"flex", alignItems:"center", gap:6 }}>
-                                            {cat.icon} {cat.label}
-                                          </span>
-                                          <span style={{ fontSize:14, fontWeight:800, color:cat.color }}>
-                                            {val}<span style={{ fontSize:11, color:"var(--faint)", fontWeight:400 }}>/{cat.max}</span>
-                                          </span>
+                                          <span style={{ fontSize:13, fontWeight:600, color:"var(--text)", display:"flex", alignItems:"center", gap:6 }}>{cat.icon} {cat.label}</span>
+                                          <span style={{ fontSize:14, fontWeight:800, color:cat.color }}>{val}<span style={{ fontSize:11, color:"var(--faint)", fontWeight:400 }}>/{cat.max}</span></span>
                                         </div>
                                         <div style={{ height:6, background:"#f1f5f9", borderRadius:99, overflow:"hidden" }}>
                                           <div style={{ height:"100%", width:`${pct}%`, background:cat.color, borderRadius:99, transition:"width 0.6s" }} />
