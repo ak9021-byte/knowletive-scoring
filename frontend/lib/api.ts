@@ -82,3 +82,22 @@ export const markActivityStatus = (data: { activity_id: number; student_name: st
 
 export const getActivityHistory = () =>
   API.get("/activities/history")
+
+// Study Material
+export const createStudyEntry = (data: {
+  date: string
+  topic_name: string
+  video_recorded: string
+  video_access: string
+  programs_given: number
+  programs_submitted: number
+  notes: string[]
+}) => API.post("/study/", data)
+
+export const getStudyEntries = () => API.get("/study/")
+
+export const updateStudyEntry = (id: number, data: any) =>
+  API.put(`/study/${id}`, data)
+
+export const deleteStudyEntry = (id: number) =>
+  API.delete(`/study/${id}`)

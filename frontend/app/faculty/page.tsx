@@ -4,6 +4,7 @@ import { useToast } from "@/lib/useToast"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import AttendanceTracker from "@/components/AttendanceTracker"
+import StudyMaterial from "@/components/StudyMaterial"
 import DailyActivity from "@/components/Dailyactivity"
 import {
   getStudents, createStudent, deleteStudent,
@@ -315,6 +316,7 @@ export default function FacultyPage() {
     { id:"analytics",  icon:"📈", label:"Analytics"   },
     { id:"attendance", icon:"✅", label:"Attendance" },
     { id:"activity", icon:"⚡", label:"Daily Activity" },
+    { id:"study", icon:"📚", label:"Study Material" },
   ]
 
   const dashAvg = dashLeaderboard.length > 0
@@ -816,6 +818,17 @@ export default function FacultyPage() {
                 <p className="page-sub">Track student participation in daily activities</p>
               </div>
               <DailyActivity />
+            </div>
+          )}
+          
+          {/* ══ STUDY MATERIAL ══ */}
+          {tab === "study" && (
+            <div style={{ maxWidth:900 }}>
+              <div className="page-header fu">
+                <h1 className="page-title">📚 Study Material</h1>
+                <p className="page-sub">Track topics, videos, and practice programs</p>
+              </div>
+              <StudyMaterial />
             </div>
           )}
 
