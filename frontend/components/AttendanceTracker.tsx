@@ -89,9 +89,12 @@ export default function AttendanceTracker() {
   const markOne = (name: string, status: Status) => {
     const updatedAtt = { ...attendance }
     if (!updatedAtt[name]) updatedAtt[name] = {}
-    updatedAtt[name][selectedDate] = status
+    updatedAtt[name][selectedDate] =
+      updatedAtt[name][selectedDate] === status ? "" : status
     setAttendance(updatedAtt)
     persist(students, updatedAtt)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 1500)
   }
 
   // Stats per student
@@ -176,6 +179,12 @@ export default function AttendanceTracker() {
                 <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
                   style={{ padding:"10px 14px", border:"1.5px solid #e5e9f5", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none", color:"#0f172a", cursor:"pointer" }} />
               </div>
+              {selectedDate !== today() && (
+                <div style={{ marginTop:10, padding:"8px 14px", background:"#fffbeb", border:"1px solid #fde68a", borderRadius:8, color:"#d97706", fontSize:13, fontWeight:600 }}>
+                  ✏️ Editing past date: {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { weekday:"short", day:"numeric", month:"short", year:"numeric" })}
+                </div>
+              )}
+              
               <div style={{ flex:1 }} />
               <div>
                 <label style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase", display:"block", marginBottom:6 }}>Mark All As</label>
