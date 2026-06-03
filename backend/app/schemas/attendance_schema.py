@@ -1,0 +1,24 @@
+from pydantic import BaseModel
+from datetime import date
+from typing import Optional, List
+
+class AttendanceCreate(BaseModel):
+    student_id: int
+    date: date
+    status: str  # "present", "absent", "holiday"
+
+class AttendanceUpdate(BaseModel):
+    status: str
+
+class AttendanceResponse(BaseModel):
+    id: int
+    student_id: int
+    date: date
+    status: str
+
+    class Config:
+        from_attributes = True
+
+class BulkAttendanceCreate(BaseModel):
+    date: date
+    records: List[AttendanceCreate]
