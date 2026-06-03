@@ -101,3 +101,31 @@ export const updateStudyEntry = (id: number, data: any) =>
 
 export const deleteStudyEntry = (id: number) =>
   API.delete(`/study/${id}`)
+
+// Interpersonal Skills
+export const createSkillEntry = (data: {
+  week: number
+  student_name: string
+  communication: number
+  dressing: number
+  gestures: number
+  time_management: number
+  posture: number
+  teamwork: number
+  confidence: number
+  leadership: number
+}) => API.post("/skills/", data)
+
+export const getSkillEntries = () => API.get("/skills/")
+
+export const getSkillsByStudent = (studentName: string) =>
+  API.get(`/skills/student/${studentName}`)
+
+export const getSkillsByWeek = (week: number) =>
+  API.get(`/skills/week/${week}`)
+
+export const updateSkillEntry = (id: number, data: any) =>
+  API.put(`/skills/${id}`, data)
+
+export const deleteSkillEntry = (id: number) =>
+  API.delete(`/skills/${id}`)

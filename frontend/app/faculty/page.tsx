@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import AttendanceTracker from "@/components/AttendanceTracker"
 import StudyMaterial from "@/components/StudyMaterial"
 import DailyActivity from "@/components/Dailyactivity"
+import InterpersonalSkills from "@/components/InterpersonalSkills"
 import {
   getStudents, createStudent, deleteStudent,
   getLeaderboard, getStudentOfDay, submitScore,
@@ -338,6 +339,7 @@ export default function FacultyPage() {
     { id:"attendance", icon:"✅", label:"Attendance"     },
     { id:"activity",   icon:"⚡", label:"Daily Activity" },
     { id:"study",      icon:"📚", label:"Study Material" },
+    { id:"interpersonal", icon:"🎯", label:"Interpersonal Skills" },
   ]
 
   const dashAvg = dashLeaderboard.length > 0
@@ -863,6 +865,16 @@ export default function FacultyPage() {
                 <p className="page-sub">Track topics, videos, and practice programs</p>
               </div>
               <StudyMaterial />
+            </div>
+          )}
+          
+          {tab === "interpersonal" && (
+            <div style={{ maxWidth:900 }}>
+              <div className="page-header fu">
+                <h1 className="page-title">🎯 Interpersonal Skills</h1>
+                <p className="page-sub">Weekly skill ratings per student</p>
+              </div>
+              <InterpersonalSkills />
             </div>
           )}
 
