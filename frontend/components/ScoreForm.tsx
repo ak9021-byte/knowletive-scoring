@@ -61,7 +61,7 @@ interface Props {
 export default function ScoreEntryFullRange({
   students: propStudents,
   onSaveAll,
-  // batchName = "BCA 1st Year - A",
+  batchName = "BCA 1st Year - A",
 }: Props) {
   
   const students = propStudents || DEMO_STUDENTS
