@@ -430,7 +430,8 @@ export default function FacultyPage() {
   ]
 
   const classAvg = analytics.filter(a => a.sessions > 0).length > 0
-    ? Math.round(analytics.filter(a => a.sessions > 0).reduce((s,a) => s + a.avg_total, 0) / analytics.filter(a => a.sessions > 0).length)
+
+    ? Math.round(analytics.filter(a => a.sessions > 0).reduce((acc,a) => acc + a.avg_total, 0) / analytics.filter(a => a.sessions > 0).length)
     : 0
 
   return (
@@ -657,12 +658,12 @@ export default function FacultyPage() {
                   { label:"Total Students",                    value:students.length,        icon:"👥", accent:"#6366f1", iconBg:"#eef0ff" },
                   { label:`Scored ${periodLabel(dashPeriod)}`, value:dashLeaderboard.length, icon:"✅", accent:"#10b981", iconBg:"#ecfdf5" },
                   { label:"Average Score",                     value:dashAvg,                icon:"📊", accent:"#f59e0b", iconBg:"#fffbeb" },
-                ].map(s => (
-                  <div key={s.label} className="stat-card">
-                    <div className="stat-card-accent" style={{ background:s.accent }} />
-                    <div className="stat-icon" style={{ background:s.iconBg }}>{s.icon}</div>
-                    <div className="stat-value" style={{ color:s.accent }}>{s.value}</div>
-                    <div className="stat-label">{s.label}</div>
+                ].map(st => (
+                  <div key={st.label} className="stat-card">
+                    <div className="stat-card-accent" style={{ background:st.accent }} />
+                    <div className="stat-icon" style={{ background:st.iconBg }}>{st.icon}</div>
+                    <div className="stat-value" style={{ color:st.accent }}>{st.value}</div>
+                    <div className="stat-label">{st.label}</div>
                   </div>
                 ))}
               </div>
