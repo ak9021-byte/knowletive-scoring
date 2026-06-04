@@ -13,6 +13,13 @@ export const studentLogin = (email: string) =>
   API.post(`/students/login?email=${email}`)
 export const updateStudentPhoto = (id: number, photo: string) =>
   API.patch(`/students/${id}/photo`, { photo })
+export const updateStudent = (
+  id: number,
+  data: {
+    name: string
+    photo?: string
+  }
+) => API.put(`/students/${id}`, data)
 
 // Scores
 export const submitScore = (data: any) => API.post("/scores/", data)

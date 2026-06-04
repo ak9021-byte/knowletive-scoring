@@ -8,6 +8,8 @@ import StudyMaterial from "@/components/StudyMaterial"
 import DailyActivity from "@/components/Dailyactivity"
 import InterpersonalSkills from "@/components/InterpersonalSkills"
 import ScoreEntryFullRange from "@/components/ScoreForm"
+import { updateStudent } from "@/lib/api"
+
 import {
   getStudents, createStudent, deleteStudent,
   getLeaderboard, getStudentOfDay, submitScore,
@@ -213,6 +215,8 @@ export default function FacultyPage() {
   const [scoreLeaderboard, setScoreLeaderboard] = useState<any[]>([])
   const [streaks, setStreaks] = useState<Record<number, number>>({})
   const [newPhoto, setNewPhoto] = useState("")
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingName, setEditingName] = useState("")
 
   // ── Score forms — loaded from localStorage drafts ──
   const [dailyForm,   setDailyFormRaw]   = useState(() => loadFormDraft("daily"))
@@ -795,7 +799,17 @@ export default function FacultyPage() {
                         </div>
 
                         <div>
-                          <div style={{ fontSize:14, fontWeight:700, color:"var(--text)" }}>{s.name}</div>
+                          {editingId === s.id ? (
+                            <input
+                              className="f-input"
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                            />
+                          ) : (
+                            <div style={{ fontSize:14, fontWeight:700, color:"var(--text)" }}>
+                              {s.name}
+                            </div>
+                          )}    
                           <div style={{ fontSize:12, color:"var(--muted)", marginTop:2 }}>{s.email}</div>
                           <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" as const, alignItems:"center" }}>
                             <span className="tier-pill" style={{ background:t.bg, color:t.color, border:`1px solid ${t.border}`, fontSize:11 }}>{t.label}</span>
@@ -803,7 +817,40 @@ export default function FacultyPage() {
                           </div>
                         </div>
                       </div>
-                      <button className="btn-del" onClick={() => deleteStudent(s.id).then(fetchBase)}>🗑 Remove</button>
+                      <div style={{ display: "flex", gap: 8 }}>
+                      {editingId === s.id ? (
+                        <button
+                          onClick={async () => {
+                            await updateStudent(s.id, {
+                              name: editingName,
+                              photo: s.photo,
+                            })
+
+                            await fetchBase()
+                            setEditingId(null)
+                          }}
+                        >
+                          💾 Save
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingId(s.id)
+                            setEditingName(s.name)
+                          }}
+                        >
+                          ✏️ Edit
+                        </button>
+                      )}
+
+                      <button
+                        className="btn-del"
+                        onClick={() => deleteStudent(s.id).then(fetchBase)}
+                      >
+                        🗑 Remove
+                      </button>
+                    </div>
+                      
                     </div>
                   )
                 })}
@@ -900,7 +947,17 @@ export default function FacultyPage() {
                     <div key={i} className="reward-row">
                       <span style={{ fontSize:22 }}>{r.type==="daily"?"⭐":r.type==="weekly"?"🏅":"🏆"}</span>
                       <div style={{ flex:1 }}>
-                        <div style={{ fontSize:14, fontWeight:700 }}>{r.name}</div>
+                        {editingId === s.id ? (
+                            <input
+                              value={editingName}
+                              onChange={(e) => setEditingName(e.target.value)}
+                            />
+                          ) : (
+                            <div style={{ fontSize:14, fontWeight:700 }}>
+                              {s.name}
+                            </div>
+                          )}
+                        
                         <div style={{ fontSize:12, color:"var(--muted)", marginTop:1 }}>{r.title}</div>
                       </div>
                       <div style={{ textAlign:"right" }}>

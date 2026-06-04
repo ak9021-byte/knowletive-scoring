@@ -71,13 +71,11 @@ export default function ScoreEntryFullRange({
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [scores, setScores] = useState({}) // { [studentId]: { attendance, speak_up, ... } }
   const [saved,  setSaved]  = useState({}) // { [studentId]: true } = submitted
-  const [photos, setPhotos] = useState({}) // { [studentId]: dataURL }
   const [filter, setFilter] = useState("all") // "all" | "scored" | "pending"
   const [search, setSearch] = useState("")
   const [showSummary, setShowSummary] = useState(false)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
-  const fileRefs = useRef<Record<number, HTMLInputElement | null>>({})
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type })
@@ -144,15 +142,6 @@ export default function ScoreEntryFullRange({
       showToast(e?.response?.data?.detail || "Error saving scores", "error")
     }
     setSaving(false)
-  }
-
-  const handlePhotoChange = (sid, e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 1000000) { showToast("Photo must be under 1MB", "warning"); return }
-    const reader = new FileReader()
-    reader.onload = (ev) => setPhotos(p => ({ ...p, [sid]: ev.target.result }))
-    reader.readAsDataURL(file)
   }
 
   const goNext = () => {
@@ -388,7 +377,7 @@ export default function ScoreEntryFullRange({
                   <div key={s.id} className="frs-summary-row">
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <div style={{width:32,height:32,borderRadius:8,background:`linear-gradient(135deg,${g1},${g2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"#fff",flexShrink:0,overflow:"hidden"}}>
-                        {photos[s.id] ? <img src={photos[s.id]} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="" /> : initials(s.name)}
+                        {s.photo ? <img src={s.photo} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="" /> : initials(s.name)}
                       </div>
                       <div>
                         <div style={{fontSize:13,fontWeight:700}}>{s.name}</div>
@@ -482,8 +471,8 @@ export default function ScoreEntryFullRange({
                   <div key={s.id} className={`frs-student-row ${isActive?"active":""}`} onClick={() => setSelectedIdx(fi)}>
                     <span className="frs-srow-num">{realIdx+1}</span>
                     <div className="frs-srow-avatar" style={{background:`linear-gradient(135deg,${g1},${g2})`}}>
-                      {photos[s.id]
-                        ? <img src={photos[s.id]} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="" />
+                      {s.photo
+                        ? <img src={s.photo} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="" />
                         : initials(s.name)
                       }
                     </div>
@@ -518,20 +507,8 @@ export default function ScoreEntryFullRange({
                   <div
                     className="frs-student-avatar-lg"
                     style={{background:`linear-gradient(135deg,${g1},${g2})`}}
-                    onClick={() => fileRefs.current[sel.id]?.click()}
-                    title="Click to upload photo"
                   >
-                    {photos[sel.id]
-                      ? <img src={photos[sel.id]} style={{width:"100%",height:"100%",objectFit:"cover"}} alt="" />
-                      : <span>{initials(sel.name)}</span>
-                    }
-                    <div className="frs-avatar-edit-badge">✎</div>
                   </div>
-                  <input
-                    type="file" accept="image/*" style={{display:"none"}}
-                    ref={el => { if (el) fileRefs.current[sel.id] = el }}
-                    onChange={e => handlePhotoChange(sel.id, e)}
-                  />
                   <div>
                     <div className="frs-student-name-lg">{sel.name}</div>
                     <div className="frs-student-roll">Roll No: {sel.rollNo}</div>

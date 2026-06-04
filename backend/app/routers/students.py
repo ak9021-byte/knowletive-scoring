@@ -14,6 +14,10 @@ router = APIRouter(prefix="/students", tags=["Students"])
 class PhotoUpdate(BaseModel):
     photo: Optional[str] = None
 
+class StudentUpdate(BaseModel):
+    name: str
+    photo: Optional[str] = None
+
 @router.post("/", response_model=StudentResponse)
 def create_student(payload: StudentCreate, db: Session = Depends(get_db)):
     existing = db.query(Student).filter(Student.email == payload.email).first()
@@ -51,6 +55,31 @@ def update_photo(student_id: int, payload: PhotoUpdate, db: Session = Depends(ge
     student.photo = payload.photo
     db.commit()
     db.refresh(student)
+    return student
+@router.put("/{student_id}", response_model=StudentResponse)
+def update_student(
+    student_id: int,
+    payload: StudentUpdate,
+    db: Session = Depends(get_db)
+):
+    student = db.query(Student).filter(
+        Student.id == student_id
+    ).first()
+
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Student not found"
+        )
+
+    student.name = payload.name
+
+    if payload.photo is not None:
+        student.photo = payload.photo
+
+    db.commit()
+    db.refresh(student)
+
     return student
 
 @router.delete("/{student_id}")
