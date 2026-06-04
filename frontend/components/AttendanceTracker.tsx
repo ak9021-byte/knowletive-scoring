@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react"
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
-type Status = "present" | "absent" | "holiday" | ""
+type Status = "present" | "half_day" | "absent" | "holiday" | ""
 
 const TOTAL_DAYS = 90
 
@@ -13,9 +13,10 @@ const getPctColor = (pct: number) =>
   pct >= 90 ? "#059669" : pct >= 75 ? "#2563eb" : pct >= 50 ? "#d97706" : "#dc2626"
 
 const statusStyle = (s: Status) => {
-  if (s === "present") return { bg:"#ecfdf5", color:"#059669", border:"#a7f3d0", label:"P" }
-  if (s === "absent")  return { bg:"#fef2f2", color:"#dc2626", border:"#fecaca", label:"A" }
-  if (s === "holiday") return { bg:"#fffbeb", color:"#d97706", border:"#fde68a", label:"H" }
+  if (s === "present")  return { bg:"#ecfdf5", color:"#059669", border:"#a7f3d0", label:"P" }
+  if (s === "half_day") return { bg:"#eff6ff", color:"#2563eb", border:"#bfdbfe", label:"HD" }
+  if (s === "absent")   return { bg:"#fef2f2", color:"#dc2626", border:"#fecaca", label:"A" }
+  if (s === "holiday")  return { bg:"#fffbeb", color:"#d97706", border:"#fde68a", label:"H" }
   return { bg:"#f8f9fe", color:"#94a3b8", border:"#e5e9f5", label:"—" }
 }
 
@@ -25,12 +26,24 @@ const avatarColors = [
   ["#a18cd1","#fbc2eb"],["#ffecd2","#fcb69f"],
 ]
 
+// Half day counts as 0.5
+const calcPct = (rec: Record<string, Status>) => {
+  const vals = Object.values(rec)
+  const present  = vals.filter(v => v === "present").length
+  const half_day = vals.filter(v => v === "half_day").length
+  const absent   = vals.filter(v => v === "absent").length
+  const holiday  = vals.filter(v => v === "holiday").length
+  const marked   = present + half_day + absent + holiday
+  const effective = present + half_day * 0.5
+  const pct = marked > 0 ? Math.round((effective / marked) * 100) : 0
+  return { present, half_day, absent, holiday, marked, pct }
+}
+
 export default function AttendanceTracker() {
   const [students, setStudents] = useState<any[]>([])
-  // { studentId: { "2026-05-01": "present" } }
   const [attendance, setAttendance] = useState<Record<number, Record<string, Status>>>({})
   const [selectedDate, setSelectedDate] = useState(today())
-  const [view, setView] = useState<"mark" | "summary" | "detail">("mark")
+  const [view, setView] = useState<"mark" | "summary">("mark")
   const [detailStudent, setDetailStudent] = useState<any>(null)
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
@@ -38,7 +51,6 @@ export default function AttendanceTracker() {
   const [saved, setSaved] = useState(false)
   const [allDates, setAllDates] = useState<string[]>([])
 
-  // Fetch students from backend
   const fetchStudents = useCallback(async () => {
     try {
       const res = await fetch(`${API}/students/`)
@@ -47,7 +59,6 @@ export default function AttendanceTracker() {
     } catch {}
   }, [])
 
-  // Fetch all attendance records
   const fetchAttendance = useCallback(async () => {
     try {
       const res = await fetch(`${API}/attendance/`)
@@ -70,23 +81,15 @@ export default function AttendanceTracker() {
     fetchAttendance()
   }, [fetchStudents, fetchAttendance])
 
-  // Mark single student
   const markOne = async (studentId: number, status: Status) => {
-    // Toggle off if same status clicked
     const current = attendance[studentId]?.[selectedDate] || ""
     const newStatus = current === status ? "" : status
-
-    // Optimistic update
     setAttendance(prev => ({
       ...prev,
       [studentId]: { ...(prev[studentId] || {}), [selectedDate]: newStatus as Status },
     }))
-    if (!allDates.includes(selectedDate)) {
-      setAllDates(prev => [...prev, selectedDate].sort())
-    }
-
-    if (!newStatus) return // cleared — no API call needed for empty
-
+    if (!allDates.includes(selectedDate)) setAllDates(prev => [...prev, selectedDate].sort())
+    if (!newStatus) return
     setSaving(studentId)
     try {
       await fetch(`${API}/attendance/mark`, {
@@ -100,20 +103,14 @@ export default function AttendanceTracker() {
     setTimeout(() => setSaved(false), 1500)
   }
 
-  // Mark all students for selected date
   const markAll = async (status: Status) => {
-    // Optimistic update
     const updated = { ...attendance }
     students.forEach(s => {
       if (!updated[s.id]) updated[s.id] = {}
       updated[s.id][selectedDate] = status
     })
     setAttendance(updated)
-    if (!allDates.includes(selectedDate)) {
-      setAllDates(prev => [...prev, selectedDate].sort())
-    }
-
-    // Bulk API call
+    if (!allDates.includes(selectedDate)) setAllDates(prev => [...prev, selectedDate].sort())
     try {
       await fetch(`${API}/attendance/mark-bulk`, {
         method: "POST",
@@ -128,22 +125,11 @@ export default function AttendanceTracker() {
     setTimeout(() => setSaved(false), 1500)
   }
 
-  // Stats per student
-  const statsFor = (studentId: number) => {
-    const rec = attendance[studentId] || {}
-    const vals = Object.values(rec)
-    const present = vals.filter(d => d === "present").length
-    const absent  = vals.filter(d => d === "absent").length
-    const holiday = vals.filter(d => d === "holiday").length
-    const marked  = present + absent + holiday
-    const pct = marked > 0 ? Math.round((present / marked) * 100) : 0
-    return { present, absent, holiday, marked, pct }
-  }
+  const statsFor = (studentId: number) => calcPct(attendance[studentId] || {})
 
   const totalMarkedDays = allDates.length
   const avgPct = students.length > 0
-    ? Math.round(students.reduce((sum, s) => sum + statsFor(s.id).pct, 0) / students.length)
-    : 0
+    ? Math.round(students.reduce((sum, s) => sum + statsFor(s.id).pct, 0) / students.length) : 0
 
   const filtered = students.filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
   const recent7 = allDates.slice(-7)
@@ -154,6 +140,14 @@ export default function AttendanceTracker() {
       <p style={{ color:"#64748b", fontSize:15 }}>Loading attendance data...</p>
     </div>
   )
+
+  // Status buttons config — 4 statuses now
+  const STATUS_BTNS: [Status, string, string, string, string][] = [
+    ["present",  "P",  "#ecfdf5", "#059669", "#a7f3d0"],
+    ["half_day", "HD", "#eff6ff", "#2563eb", "#bfdbfe"],
+    ["absent",   "A",  "#fef2f2", "#dc2626", "#fecaca"],
+    ["holiday",  "H",  "#fffbeb", "#d97706", "#fde68a"],
+  ]
 
   return (
     <div style={{ fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
@@ -175,12 +169,27 @@ export default function AttendanceTracker() {
         </div>
       </div>
 
+      {/* Legend */}
+      <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginBottom:16 }}>
+        {[
+          ["P",  "Present (1.0)",   "#ecfdf5","#059669","#a7f3d0"],
+          ["HD", "Half Day (0.5)",  "#eff6ff","#2563eb","#bfdbfe"],
+          ["A",  "Absent (0.0)",    "#fef2f2","#dc2626","#fecaca"],
+          ["H",  "Holiday",         "#fffbeb","#d97706","#fde68a"],
+        ].map(([l,label,bg,color,border]) => (
+          <div key={l} style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#64748b", fontWeight:600 }}>
+            <div style={{ width:26, height:26, borderRadius:6, background:bg, border:`1.5px solid ${border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, color }}>{l}</div>
+            {label}
+          </div>
+        ))}
+      </div>
+
       {/* Stats */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:20 }}>
         {[
-          { label:"Total Students", value:students.length,                        icon:"👥", color:"#6366f1", bg:"#eef0ff" },
-          { label:"Days Marked",    value:`${totalMarkedDays} / ${TOTAL_DAYS}`,   icon:"📅", color:"#059669", bg:"#ecfdf5" },
-          { label:"Avg Attendance", value:`${avgPct}%`,                           icon:"📊", color:"#d97706", bg:"#fffbeb" },
+          { label:"Total Students", value:students.length,                      icon:"👥", color:"#6366f1", bg:"#eef0ff" },
+          { label:"Days Marked",    value:`${totalMarkedDays} / ${TOTAL_DAYS}`, icon:"📅", color:"#059669", bg:"#ecfdf5" },
+          { label:"Avg Attendance", value:`${avgPct}%`,                         icon:"📊", color:"#d97706", bg:"#fffbeb" },
         ].map(s => (
           <div key={s.label} style={{ background:"#fff", border:"1px solid #e5e9f5", borderRadius:16, padding:"20px 22px", boxShadow:"0 1px 3px rgba(0,0,0,0.06)", position:"relative", overflow:"hidden" }}>
             <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:s.color, borderRadius:"16px 16px 0 0" }} />
@@ -194,7 +203,6 @@ export default function AttendanceTracker() {
       {/* ══ MARK VIEW ══ */}
       {view === "mark" && (
         <>
-          {/* Date + bulk actions */}
           <div style={{ background:"#fff", border:"1px solid #e5e9f5", borderRadius:16, padding:20, marginBottom:16, boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
             <div style={{ display:"flex", alignItems:"center", flexWrap:"wrap", gap:12 }}>
               <div>
@@ -210,13 +218,16 @@ export default function AttendanceTracker() {
               <div style={{ flex:1 }} />
               <div>
                 <label style={{ fontSize:11, fontWeight:700, color:"#94a3b8", letterSpacing:"1px", textTransform:"uppercase" as const, display:"block", marginBottom:6 }}>Mark All As</label>
-                <div style={{ display:"flex", gap:8 }}>
-                  {([["present","✅ All Present","#ecfdf5","#059669","#a7f3d0"],
-                     ["absent", "❌ All Absent", "#fef2f2","#dc2626","#fecaca"],
-                     ["holiday","🏖️ Holiday",    "#fffbeb","#d97706","#fde68a"]] as const).map(([s,l,bg,color,border]) => (
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" as const }}>
+                  {([
+                    ["present",  "✅ Present", "#ecfdf5","#059669","#a7f3d0"],
+                    ["half_day", "🕐 Half Day","#eff6ff","#2563eb","#bfdbfe"],
+                    ["absent",   "❌ Absent",  "#fef2f2","#dc2626","#fecaca"],
+                    ["holiday",  "🏖️ Holiday", "#fffbeb","#d97706","#fde68a"],
+                  ] as const).map(([s,l,bg,color,border]) => (
                     <button key={s} onClick={() => markAll(s as Status)} style={{
-                      padding:"9px 16px", borderRadius:9, border:`1.5px solid ${border}`,
-                      background:bg, color, fontWeight:700, fontSize:13,
+                      padding:"8px 14px", borderRadius:9, border:`1.5px solid ${border}`,
+                      background:bg, color, fontWeight:700, fontSize:12,
                       fontFamily:"inherit", cursor:"pointer", whiteSpace:"nowrap" as const,
                     }}>{l}</button>
                   ))}
@@ -230,12 +241,10 @@ export default function AttendanceTracker() {
             )}
           </div>
 
-          {/* Search */}
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="🔍 Search student..."
             style={{ width:"100%", padding:"11px 16px", border:"1.5px solid #e5e9f5", borderRadius:10, fontSize:14, fontFamily:"inherit", outline:"none", color:"#0f172a", background:"#fff", marginBottom:12, boxSizing:"border-box" as any }} />
 
-          {/* Student rows */}
           {students.length === 0 ? (
             <div style={{ background:"#fff", border:"1px solid #e5e9f5", borderRadius:16, padding:"60px 24px", textAlign:"center" }}>
               <div style={{ fontSize:48, marginBottom:12 }}>👥</div>
@@ -254,7 +263,7 @@ export default function AttendanceTracker() {
                     background: status ? st.bg + "55" : "#fff",
                     border:`1.5px solid ${status ? st.border : "#e5e9f5"}`,
                     borderRadius:14, padding:"14px 18px",
-                    display:"flex", alignItems:"center", gap:14,
+                    display:"flex", alignItems:"center", gap:12,
                     boxShadow:"0 1px 3px rgba(0,0,0,0.04)", transition:"all 0.2s",
                     opacity: isSaving ? 0.7 : 1,
                   }}>
@@ -263,18 +272,19 @@ export default function AttendanceTracker() {
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontWeight:700, fontSize:14, color:"#0f172a", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{student.name}</div>
-                      <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Present: {stats.present} · Absent: {stats.absent} · Holiday: {stats.holiday}</div>
+                      <div style={{ fontSize:11, color:"#64748b", marginTop:2 }}>
+                        P:{stats.present} · HD:{stats.half_day} · A:{stats.absent} · H:{stats.holiday}
+                      </div>
                     </div>
-                    <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                      {([["present","P","#ecfdf5","#059669","#a7f3d0"],
-                         ["absent", "A","#fef2f2","#dc2626","#fecaca"],
-                         ["holiday","H","#fffbeb","#d97706","#fde68a"]] as const).map(([s,l,bg,color,border]) => (
-                        <button key={s} onClick={() => markOne(student.id, s as Status)} disabled={isSaving} style={{
-                          width:36, height:36, borderRadius:9,
+                    {/* 4 status buttons */}
+                    <div style={{ display:"flex", gap:5, flexShrink:0 }}>
+                      {STATUS_BTNS.map(([s,l,bg,color,border]) => (
+                        <button key={s} onClick={() => markOne(student.id, s)} disabled={isSaving} style={{
+                          width: s === "half_day" ? 40 : 34, height:34, borderRadius:8,
                           border:`2px solid ${status === s ? color : border}`,
                           background: status === s ? color : bg,
                           color: status === s ? "#fff" : color,
-                          fontWeight:800, fontSize:13, cursor:"pointer",
+                          fontWeight:800, fontSize:11, cursor:"pointer",
                           fontFamily:"inherit", transition:"all 0.15s",
                           boxShadow: status === s ? `0 2px 8px ${color}55` : "none",
                         }}>{l}</button>
@@ -315,7 +325,9 @@ export default function AttendanceTracker() {
                     </div>
                     <div style={{ flex:1 }}>
                       <div style={{ fontWeight:700, fontSize:14, color:"#0f172a" }}>{s.name}</div>
-                      <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>Present: {s.present} · Absent: {s.absent} · Holiday: {s.holiday}</div>
+                      <div style={{ fontSize:12, color:"#64748b", marginTop:2 }}>
+                        P:{s.present} · HD:{s.half_day} · A:{s.absent} · H:{s.holiday}
+                      </div>
                       <div style={{ height:5, background:"#f1f5f9", borderRadius:99, overflow:"hidden", marginTop:7, maxWidth:200 }}>
                         <div style={{ height:"100%", width:`${s.pct}%`, background:getPctColor(s.pct), borderRadius:99, transition:"width 0.6s" }} />
                       </div>
@@ -324,7 +336,7 @@ export default function AttendanceTracker() {
                       {recent7.map(d => {
                         const st = statusStyle((attendance[s.id]?.[d] || "") as Status)
                         return (
-                          <div key={d} title={d} style={{ width:26, height:26, borderRadius:6, background:st.bg, border:`1px solid ${st.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, color:st.color }}>
+                          <div key={d} title={d} style={{ width:28, height:28, borderRadius:6, background:st.bg, border:`1px solid ${st.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:800, color:st.color }}>
                             {st.label}
                           </div>
                         )
@@ -360,7 +372,7 @@ export default function AttendanceTracker() {
                 <div style={{ flex:1 }}>
                   <div style={{ fontWeight:800, fontSize:20, color:"#0f172a" }}>{detailStudent.name}</div>
                   <div style={{ fontSize:13, color:"#64748b", marginTop:3 }}>
-                    Present {stats.present} · Absent {stats.absent} · Holiday {stats.holiday} · {stats.marked} days marked
+                    P:{stats.present} · HD:{stats.half_day} · A:{stats.absent} · H:{stats.holiday} · {stats.marked} days marked
                   </div>
                 </div>
                 <div style={{ textAlign:"center", padding:"14px 24px", borderRadius:14, background:getPctColor(stats.pct)+"18", border:`1.5px solid ${getPctColor(stats.pct)}44` }}>
@@ -379,16 +391,17 @@ export default function AttendanceTracker() {
                 </div>
               </div>
 
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:12, marginBottom:24 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:12, marginBottom:24 }}>
                 {[
-                  { label:"Present",  value:stats.present,              color:"#059669", bg:"#ecfdf5" },
-                  { label:"Absent",   value:stats.absent,               color:"#dc2626", bg:"#fef2f2" },
-                  { label:"Holiday",  value:stats.holiday,              color:"#d97706", bg:"#fffbeb" },
-                  { label:"Unmarked", value:TOTAL_DAYS - stats.marked,  color:"#94a3b8", bg:"#f8f9fe" },
+                  { label:"Present",  value:stats.present,             color:"#059669", bg:"#ecfdf5" },
+                  { label:"Half Day", value:stats.half_day,            color:"#2563eb", bg:"#eff6ff" },
+                  { label:"Absent",   value:stats.absent,              color:"#dc2626", bg:"#fef2f2" },
+                  { label:"Holiday",  value:stats.holiday,             color:"#d97706", bg:"#fffbeb" },
+                  { label:"Unmarked", value:TOTAL_DAYS - stats.marked, color:"#94a3b8", bg:"#f8f9fe" },
                 ].map(s => (
-                  <div key={s.label} style={{ background:s.bg, borderRadius:12, padding:"14px 16px", textAlign:"center" }}>
-                    <div style={{ fontSize:28, fontWeight:800, color:s.color }}>{s.value}</div>
-                    <div style={{ fontSize:12, color:"#64748b", marginTop:4, fontWeight:500 }}>{s.label}</div>
+                  <div key={s.label} style={{ background:s.bg, borderRadius:12, padding:"12px 10px", textAlign:"center" }}>
+                    <div style={{ fontSize:24, fontWeight:800, color:s.color }}>{s.value}</div>
+                    <div style={{ fontSize:11, color:"#64748b", marginTop:4, fontWeight:500 }}>{s.label}</div>
                   </div>
                 ))}
               </div>
@@ -406,7 +419,7 @@ export default function AttendanceTracker() {
                     return (
                       <div key={d} style={{ background:st.bg, border:`1.5px solid ${st.border}`, borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
                         <div style={{ fontSize:11, color:"#64748b", fontWeight:600, marginBottom:4 }}>{dateLabel}</div>
-                        <div style={{ fontSize:16, fontWeight:800, color:st.color }}>{st.label}</div>
+                        <div style={{ fontSize:14, fontWeight:800, color:st.color }}>{st.label}</div>
                       </div>
                     )
                   })}

@@ -10,6 +10,24 @@ from datetime import date
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
 
+def calc_pct(records):
+    present  = sum(1   for r in records if r.status == "present")
+    half_day = sum(0.5 for r in records if r.status == "half_day")
+    absent   = sum(1   for r in records if r.status == "absent")
+    holiday  = sum(1   for r in records if r.status == "holiday")
+    marked   = present + len([r for r in records if r.status == "half_day"]) + absent + holiday
+    effective = present + half_day
+    pct = round((effective / marked) * 100) if marked > 0 else 0
+    return {
+        "present":  int(present),
+        "half_day": len([r for r in records if r.status == "half_day"]),
+        "absent":   int(absent),
+        "holiday":  int(holiday),
+        "marked":   int(marked),
+        "pct":      int(pct),
+    }
+
+
 @router.get("/", response_model=List[AttendanceResponse])
 def get_all_attendance(db: Session = Depends(get_db)):
     return db.query(Attendance).all()
@@ -51,37 +69,26 @@ def get_attendance_summary(db: Session = Depends(get_db)):
     result = []
     for s in students:
         records = db.query(Attendance).filter(Attendance.student_id == s.id).all()
-        present = sum(1 for r in records if r.status == "present")
-        absent  = sum(1 for r in records if r.status == "absent")
-        holiday = sum(1 for r in records if r.status == "holiday")
-        marked  = present + absent + holiday
-        pct     = round((present / marked) * 100) if marked > 0 else 0
+        stats = calc_pct(records)
         result.append({
-            "student_id": s.id,
+            "student_id":   s.id,
             "student_name": s.name,
-            "present": present,
-            "absent": absent,
-            "holiday": holiday,
-            "marked": marked,
-            "pct": pct,
+            **stats,
         })
     return result
 
 
 @router.post("/mark", response_model=AttendanceResponse)
 def mark_attendance(payload: AttendanceCreate, db: Session = Depends(get_db)):
-    # Check if already exists for this student+date
     existing = db.query(Attendance).filter(
         Attendance.student_id == payload.student_id,
         Attendance.date == payload.date,
     ).first()
-
     if existing:
         existing.status = payload.status
         db.commit()
         db.refresh(existing)
         return existing
-
     record = Attendance(**payload.dict())
     db.add(record)
     db.commit()
