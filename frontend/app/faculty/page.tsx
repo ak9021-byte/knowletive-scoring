@@ -7,6 +7,7 @@ import AttendanceTracker from "@/components/AttendanceTracker"
 import StudyMaterial from "@/components/StudyMaterial"
 import DailyActivity from "@/components/Dailyactivity"
 import InterpersonalSkills from "@/components/InterpersonalSkills"
+import ScoreEntryFullRange from "@/components/ScoreForm"
 import {
   getStudents, createStudent, deleteStudent,
   getLeaderboard, getStudentOfDay, submitScore,
@@ -669,25 +670,22 @@ export default function FacultyPage() {
           )}
 
           {/* ══ SCORE ENTRY ══ */}
+          {/* ══ SCORE ENTRY ══ */}
           {tab === "score" && (
-            <div style={{ maxWidth:680 }}>
-              <div className="page-header fu">
-                <h1 className="page-title">📝 Score Entry</h1>
-                <p className="page-sub">Record student performance — daily, weekly or monthly</p>
-              </div>
-              <PeriodSelector active={scorePeriod} onChange={handleScorePeriod} />
-              <div className="period-banner fu fu1">
-                {scorePeriod === "daily"   && "📅 Entering today's score — one submission per student per day."}
-                {scorePeriod === "weekly"  && "📆 Entering a weekly score — covers the full current week."}
-                {scorePeriod === "monthly" && "🗓️ Entering a monthly score — covers the full current month."}
-              </div>
-              <ScoreEntryForm period={scorePeriod} />
-              {scoreLeaderboard.length > 0 && (
-                <div className="card fu fu2" style={{ marginTop:24 }}>
-                  <div className="sec-label">📊 {periodLabel(scorePeriod)} Rankings</div>
-                  <LeaderboardList data={scoreLeaderboard} period={scorePeriod} streaks={streaks} />
-                </div>
-              )}
+            <div style={{ maxWidth:"100%", paddingRight:0 }}>
+              <ScoreEntryFullRange
+                students={students}
+                batchName="BCA 1st Year - A"
+                onSaveAll={async (entries) => {
+                  for (const e of entries) {
+                    await submitScore(e)
+                  }
+                  fetchBase()
+                  fetchLeaderboard(scorePeriod, "score")
+                  fetchStreaks()
+                  showToast("All scores saved! 🚀", "success")
+                }}
+              />
             </div>
           )}
 
