@@ -508,6 +508,19 @@ export default function ScoreEntryFullRange({
                     className="frs-student-avatar-lg"
                     style={{background:`linear-gradient(135deg,${g1},${g2})`}}
                   >
+                    {sel.photo ? (
+                      <img
+                        src={sel.photo}
+                        alt={sel.name}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover"
+                        }}
+                      />
+                    ) : (
+                      initials(sel.name)
+                    )}
                   </div>
                   <div>
                     <div className="frs-student-name-lg">{sel.name}</div>
