@@ -61,7 +61,7 @@ interface Props {
 export default function ScoreEntryFullRange({
   students: propStudents,
   onSaveAll,
-  batchName = "BCA 1st Year - A",
+  // batchName = "BCA 1st Year - A",
 }: Props) {
   
   const students = propStudents || DEMO_STUDENTS
@@ -524,7 +524,6 @@ export default function ScoreEntryFullRange({
                   </div>
                   <div>
                     <div className="frs-student-name-lg">{sel.name}</div>
-                    <div className="frs-student-roll">Roll No: {sel.rollNo}</div>
                   </div>
                   <div className="frs-total-wrap">
                     <div className="frs-total-label">Total Score</div>
