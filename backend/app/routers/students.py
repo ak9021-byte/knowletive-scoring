@@ -5,10 +5,14 @@ from app.models.student import Student
 from app.models.score import Score
 from app.models.reward import Reward
 from app.schemas.student import StudentCreate, StudentResponse, RewardCreate, RewardResponse
-from typing import List
+from typing import List, Optional
 from datetime import date
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/students", tags=["Students"])
+
+class PhotoUpdate(BaseModel):
+    photo: Optional[str] = None
 
 @router.post("/", response_model=StudentResponse)
 def create_student(payload: StudentCreate, db: Session = Depends(get_db)):
@@ -37,6 +41,16 @@ def student_login(email: str, db: Session = Depends(get_db)):
     student = db.query(Student).filter(Student.email == email).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+    return student
+
+@router.patch("/{student_id}/photo")
+def update_photo(student_id: int, payload: PhotoUpdate, db: Session = Depends(get_db)):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    student.photo = payload.photo
+    db.commit()
+    db.refresh(student)
     return student
 
 @router.delete("/{student_id}")

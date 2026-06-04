@@ -6,17 +6,19 @@ const API = axios.create({
 
 // Students
 export const getStudents = () => API.get("/students/")
-export const createStudent = (data: { name: string; email: string }) =>
+export const createStudent = (data: { name: string; email: string; photo?: string }) =>
   API.post("/students/", data)
 export const deleteStudent = (id: number) => API.delete(`/students/${id}`)
 export const studentLogin = (email: string) =>
   API.post(`/students/login?email=${email}`)
+export const updateStudentPhoto = (id: number, photo: string) =>
+  API.patch(`/students/${id}/photo`, { photo })
 
 // Scores
 export const submitScore = (data: any) => API.post("/scores/", data)
 export const getLeaderboard = () => API.get("/scores/leaderboard/today")
-export const getWeeklyLeaderboard = () => API.get("/scores/leaderboard/weekly")   // ✅ added
-export const getMonthlyLeaderboard = () => API.get("/scores/leaderboard/monthly") // ✅ added
+export const getWeeklyLeaderboard = () => API.get("/scores/leaderboard/weekly")
+export const getMonthlyLeaderboard = () => API.get("/scores/leaderboard/monthly")
 export const getStudentOfDay = () => API.get("/scores/student-of-the-day")
 export const getWeeklyScores = (studentId: number) =>
   API.get(`/scores/weekly/${studentId}`)
@@ -30,14 +32,13 @@ export const getStudentRewards = (studentId: number) =>
   API.get(`/students/rewards/student/${studentId}`)
 export const getAllRewards = () => API.get("/students/rewards/all")
 
+// Averages & Streaks
 export const getAllAverages = (days: number) =>
   API.get(`/scores/averages/all?days=${days}`)
 export const getStudentAverage = (studentId: number, days: number) =>
   API.get(`/scores/average/${studentId}?days=${days}`)
-
 export const getStudentStreak = (studentId: number) =>
   API.get(`/scores/streak/${studentId}`)
-
 export const getAllStreaks = () =>
   API.get(`/scores/streaks/all`)
 
@@ -64,7 +65,13 @@ export const parseAttendanceCSV = (csv: string) => {
     const presentDays = Object.values(attendance).filter(v =>
       v.toLowerCase() === "p" || v.toLowerCase() === "present" || v === "1"
     ).length
-    return { name, attendance, totalDays, presentDays, percentage: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0 }
+    return {
+      name,
+      attendance,
+      totalDays,
+      presentDays,
+      percentage: totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0,
+    }
   }).filter(s => s.name)
 
   return { headers: headers.slice(1), students }
@@ -73,13 +80,10 @@ export const parseAttendanceCSV = (csv: string) => {
 // Daily Activity
 export const createActivity = (data: { date: string; name: string }) =>
   API.post("/activities/", data)
-
 export const getActivities = (date: string) =>
   API.get(`/activities/?date=${date}`)
-
 export const markActivityStatus = (data: { activity_id: number; student_name: string; status: "Y" | "N" | "" }) =>
   API.post("/activities/mark", data)
-
 export const getActivityHistory = () =>
   API.get("/activities/history")
 
@@ -93,12 +97,9 @@ export const createStudyEntry = (data: {
   programs_submitted: number
   notes: string[]
 }) => API.post("/study/", data)
-
 export const getStudyEntries = () => API.get("/study/")
-
 export const updateStudyEntry = (id: number, data: any) =>
   API.put(`/study/${id}`, data)
-
 export const deleteStudyEntry = (id: number) =>
   API.delete(`/study/${id}`)
 
@@ -115,17 +116,12 @@ export const createSkillEntry = (data: {
   confidence: number
   leadership: number
 }) => API.post("/skills/", data)
-
 export const getSkillEntries = () => API.get("/skills/")
-
 export const getSkillsByStudent = (studentName: string) =>
   API.get(`/skills/student/${studentName}`)
-
 export const getSkillsByWeek = (week: number) =>
   API.get(`/skills/week/${week}`)
-
 export const updateSkillEntry = (id: number, data: any) =>
   API.put(`/skills/${id}`, data)
-
 export const deleteSkillEntry = (id: number) =>
   API.delete(`/skills/${id}`)

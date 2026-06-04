@@ -2,15 +2,18 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime, date
 from typing import Optional
 
+
 class StudentCreate(BaseModel):
     name: str
     email: EmailStr
+    photo: Optional[str] = None
 
 class StudentResponse(BaseModel):
     id: int
     name: str
     email: str
     level: str
+    photo: Optional[str] = None
     joined_at: datetime
 
     class Config:

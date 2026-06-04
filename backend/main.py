@@ -13,6 +13,7 @@ Base.metadata.create_all(bind=engine)
 try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE daily_scores ADD COLUMN IF NOT EXISTS suggestion TEXT"))
+        conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS photo TEXT"))
         conn.execute(text("ALTER TABLE daily_scores ADD COLUMN IF NOT EXISTS score_type VARCHAR DEFAULT 'daily'"))
         conn.execute(text("UPDATE daily_scores SET score_type = 'daily' WHERE score_type IS NULL"))
         conn.commit()

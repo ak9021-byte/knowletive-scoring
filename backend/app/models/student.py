@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Text
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -11,6 +11,7 @@ class Student(Base):
     name      = Column(String, nullable=False)
     email     = Column(String, unique=True, nullable=False)
     level     = Column(String, default="Beginner")
+    photo     = Column(Text, nullable=True)
     joined_at = Column(DateTime, default=datetime.utcnow)
 
     scores  = relationship("Score", back_populates="student")

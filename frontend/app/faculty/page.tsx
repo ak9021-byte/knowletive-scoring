@@ -12,7 +12,8 @@ import {
   getLeaderboard, getStudentOfDay, submitScore,
   giveReward, getAllRewards,
   getWeeklyLeaderboard, getMonthlyLeaderboard,
-  getAllAverages, getAllStreaks
+  getAllAverages, getAllStreaks,
+  updateStudentPhoto,
 } from "@/lib/api"
 
 type Period = "daily" | "weekly" | "monthly"
@@ -210,6 +211,7 @@ export default function FacultyPage() {
   const [dashLeaderboard, setDashLeaderboard] = useState<any[]>([])
   const [scoreLeaderboard, setScoreLeaderboard] = useState<any[]>([])
   const [streaks, setStreaks] = useState<Record<number, number>>({})
+  const [newPhoto, setNewPhoto] = useState("")
 
   // ── Score forms — loaded from localStorage drafts ──
   const [dailyForm,   setDailyFormRaw]   = useState(() => loadFormDraft("daily"))
@@ -300,8 +302,11 @@ export default function FacultyPage() {
   const handleAddStudent = async () => {
     if (!newName || !newEmail) return showToast("Please fill in all fields!", "warning")
     try {
-      await createStudent({ name: newName, email: newEmail })
-      setNewName(""); setNewEmail(""); fetchBase()
+      await createStudent({ name: newName, email: newEmail, photo: newPhoto || undefined })
+      setNewName(""); setNewEmail(""); setNewPhoto("")
+      const photoInput = document.getElementById("photo-upload") as HTMLInputElement
+      if (photoInput) photoInput.value = ""
+      fetchBase()
       showToast(`${newName} added successfully!`, "success")
     } catch { showToast("Error adding student. Email may already exist!", "error") }
   }
@@ -510,6 +515,9 @@ export default function FacultyPage() {
         .student-card { background:var(--white); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; display:flex; align-items:center; justify-content:space-between; box-shadow:var(--shadow); transition:all 0.2s; }
         .student-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
         .s-avatar { width:46px; height:46px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; color:#fff; flex-shrink:0; }
+        .avatar-edit-wrap { position:relative; cursor:pointer; flex-shrink:0; }
+        .avatar-edit-btn { position:absolute; bottom:-3px; right:-3px; width:20px; height:20px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; border:2px solid #fff; box-shadow:0 1px 4px rgba(91,94,244,0.4); pointer-events:none; }
+        .avatar-edit-wrap:hover .avatar-edit-btn { background:#4338ca; }
         .reward-row { display:flex; align-items:center; gap:14px; padding:13px 16px; border-radius:10px; background:var(--white); border:1px solid var(--border); margin-bottom:8px; transition:all 0.2s; }
         .reward-row:hover { border-color:var(--border-dark); box-shadow:var(--shadow); }
         .period-banner { display:flex; align-items:center; gap:10px; padding:12px 18px; border-radius:10px; background:#eef0ff; border:1px solid #c7d2fe; margin-bottom:20px; font-size:13px; font-weight:600; color:#4338ca; }
@@ -690,14 +698,44 @@ export default function FacultyPage() {
                 <h1 className="page-title">👥 Students</h1>
                 <p className="page-sub">Manage your student roster</p>
               </div>
+
+              {/* Add New Student */}
               <div className="card fu fu1" style={{ marginBottom:24 }}>
                 <div className="sec-label">➕ Add New Student</div>
-                <div style={{ display:"flex", gap:12, flexWrap:"wrap" as const }}>
-                  <input className="f-input" placeholder="Full name"     value={newName}  onChange={e => setNewName(e.target.value)}  style={{ flex:1, minWidth:150 }} />
-                  <input className="f-input" placeholder="Email address" value={newEmail} onChange={e => setNewEmail(e.target.value)} style={{ flex:1, minWidth:150 }} />
+                <div style={{ display:"flex", gap:12, flexWrap:"wrap" as const, alignItems:"flex-end" }}>
+
+                  {/* Photo upload for new student */}
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
+                    <div style={{ width:60, height:60, borderRadius:14, overflow:"hidden", border:"2px dashed var(--border)", background:"#f8f9fe", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative" as const }}
+                      onClick={() => document.getElementById("photo-upload")?.click()}>
+                      {newPhoto ? (
+                        <img src={newPhoto} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                      ) : (
+                        <span style={{ fontSize:24, color:"var(--faint)" }}>📷</span>
+                      )}
+                    </div>
+                    <input id="photo-upload" type="file" accept="image/*" style={{ display:"none" }}
+                      onChange={e => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        if (file.size > 500000) return showToast("Photo must be under 500KB", "warning")
+                        const reader = new FileReader()
+                        reader.onload = (ev) => setNewPhoto(ev.target?.result as string)
+                        reader.readAsDataURL(file)
+                      }}
+                    />
+                    <span style={{ fontSize:10, color:"var(--faint)", textAlign:"center" }}>Photo<br/>(optional)</span>
+                  </div>
+
+                  <input className="f-input" placeholder="Full name" value={newName}
+                    onChange={e => setNewName(e.target.value)} style={{ flex:1, minWidth:150 }} />
+                  <input className="f-input" placeholder="Email address" value={newEmail}
+                    onChange={e => setNewEmail(e.target.value)} style={{ flex:1, minWidth:150 }} />
                   <button className="btn-add" onClick={handleAddStudent}>+ Add Student</button>
                 </div>
               </div>
+
+              {/* Student Cards */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))", gap:14 }}>
                 {students.map((s, i) => {
                   const [g1, g2] = avatarColors[i % avatarColors.length]
@@ -706,14 +744,58 @@ export default function FacultyPage() {
                   return (
                     <div key={s.id} className="student-card fu" style={{ animationDelay:`${i * 0.04}s`, opacity:0 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                        <div style={{ position:"relative" }}>
-                          <div className="s-avatar" style={{ background:`linear-gradient(135deg,${g1},${g2})` }}>
-                            {s.name.charAt(0).toUpperCase()}
+
+                        {/* ── Clickable avatar with edit badge ── */}
+                        <div
+                          className="avatar-edit-wrap"
+                          onClick={() => document.getElementById(`photo-${s.id}`)?.click()}
+                          title="Click to change photo"
+                        >
+                          <div
+                            className="s-avatar"
+                            style={{
+                              background: `linear-gradient(135deg,${g1},${g2})`,
+                              width: 46, height: 46, borderRadius: 12, overflow: "hidden",
+                            }}
+                          >
+                            {s.photo ? (
+                              <img src={s.photo} style={{ width:"100%", height:"100%", objectFit:"cover" }} alt={s.name} />
+                            ) : (
+                              <span style={{ fontSize:18, fontWeight:800, color:"#fff" }}>
+                                {s.name.charAt(0).toUpperCase()}
+                              </span>
+                            )}
                           </div>
+                          {/* Pencil edit badge */}
+                          <div className="avatar-edit-btn">✎</div>
+                          {/* Streak fire badge (only when streak ≥ 3) */}
                           {streak >= 3 && (
-                            <div style={{ position:"absolute", top:-6, right:-6, fontSize:14, lineHeight:1 }} title={`${streak} day streak`}>🔥</div>
+                            <div style={{ position:"absolute", top:-6, left:-6, fontSize:13, lineHeight:1 }} title={`${streak} day streak`}>🔥</div>
                           )}
+                          {/* Hidden file input per student */}
+                          <input
+                            id={`photo-${s.id}`}
+                            type="file"
+                            accept="image/*"
+                            style={{ display:"none" }}
+                            onChange={async e => {
+                              const file = e.target.files?.[0]
+                              if (!file) return
+                              if (file.size > 500000) return showToast("Photo must be under 500KB", "warning")
+                              const reader = new FileReader()
+                              reader.onload = async (ev) => {
+                                const photo = ev.target?.result as string
+                                try {
+                                  await updateStudentPhoto(s.id, photo)
+                                  fetchBase()
+                                  showToast("Photo updated! ✅", "success")
+                                } catch { showToast("Error updating photo", "error") }
+                              }
+                              reader.readAsDataURL(file)
+                            }}
+                          />
                         </div>
+
                         <div>
                           <div style={{ fontSize:14, fontWeight:700, color:"var(--text)" }}>{s.name}</div>
                           <div style={{ fontSize:12, color:"var(--muted)", marginTop:2 }}>{s.email}</div>
@@ -867,7 +949,8 @@ export default function FacultyPage() {
               <StudyMaterial />
             </div>
           )}
-          
+
+          {/* ══ INTERPERSONAL SKILLS ══ */}
           {tab === "interpersonal" && (
             <div style={{ maxWidth:900 }}>
               <div className="page-header fu">
