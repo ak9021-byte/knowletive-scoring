@@ -378,7 +378,6 @@ export default function AttendanceTracker() {
                     : detailStudent.name.charAt(0).toUpperCase()
                   }
                 </div>
-                </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontWeight:800, fontSize:20, color:"#0f172a" }}>{detailStudent.name}</div>
                   <div style={{ fontSize:13, color:"#64748b", marginTop:3 }}>
