@@ -267,8 +267,11 @@ export default function AttendanceTracker() {
                     boxShadow:"0 1px 3px rgba(0,0,0,0.04)", transition:"all 0.2s",
                     opacity: isSaving ? 0.7 : 1,
                   }}>
-                    <div style={{ width:42, height:42, borderRadius:11, background:`linear-gradient(135deg,${g1},${g2})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, fontWeight:800, color:"#fff", flexShrink:0 }}>
-                      {student.name.charAt(0).toUpperCase()}
+                    <div style={{ width:42, height:42, borderRadius:11, background:`linear-gradient(135deg,${g1},${g2})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, fontWeight:800, color:"#fff", flexShrink:0, overflow:"hidden" }}>
+                      {student.photo
+                        ? <img src={student.photo} alt={student.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                        : student.name.charAt(0).toUpperCase()
+                      }
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontWeight:700, fontSize:14, color:"#0f172a", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{student.name}</div>
@@ -320,8 +323,11 @@ export default function AttendanceTracker() {
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow="0 4px 16px rgba(0,0,0,0.08)"; (e.currentTarget as HTMLElement).style.transform="translateX(3px)" }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow="0 1px 3px rgba(0,0,0,0.04)"; (e.currentTarget as HTMLElement).style.transform="none" }}
                   >
-                    <div style={{ width:42, height:42, borderRadius:11, background:`linear-gradient(135deg,${g1},${g2})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, fontWeight:800, color:"#fff", flexShrink:0 }}>
-                      {s.name.charAt(0).toUpperCase()}
+                    <div style={{ width:42, height:42, borderRadius:11, background:`linear-gradient(135deg,${g1},${g2})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, fontWeight:800, color:"#fff", flexShrink:0, overflow:"hidden" }}>
+                      {s.photo
+                        ? <img src={s.photo} alt={s.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                        : s.name.charAt(0).toUpperCase()
+                      }
                     </div>
                     <div style={{ flex:1 }}>
                       <div style={{ fontWeight:700, fontSize:14, color:"#0f172a" }}>{s.name}</div>
@@ -366,8 +372,12 @@ export default function AttendanceTracker() {
             </button>
             <div style={{ background:"#fff", border:"1px solid #e5e9f5", borderRadius:16, padding:24, boxShadow:"0 1px 3px rgba(0,0,0,0.06)" }}>
               <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:24, paddingBottom:20, borderBottom:"1px solid #f1f5f9" }}>
-                <div style={{ width:56, height:56, borderRadius:14, background:"linear-gradient(135deg,#5b5ef4,#818cf8)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:800, color:"#fff" }}>
-                  {detailStudent.name.charAt(0).toUpperCase()}
+                <div style={{ width:56, height:56, borderRadius:14, background:"linear-gradient(135deg,#5b5ef4,#818cf8)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:800, color:"#fff", overflow:"hidden" }}>
+                  {detailStudent.photo
+                    ? <img src={detailStudent.photo} alt={detailStudent.name} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                    : detailStudent.name.charAt(0).toUpperCase()
+                  }
+                </div>
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontWeight:800, fontSize:20, color:"#0f172a" }}>{detailStudent.name}</div>
