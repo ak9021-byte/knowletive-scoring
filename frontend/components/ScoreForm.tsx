@@ -351,13 +351,6 @@ export default function ScoreEntryFullRange({
           {/* LEFT: student list */}
           <div className="frs-left">
             <div className="frs-left-header">
-              <div className="frs-batch-row">
-                <div className="frs-batch-icon">🎓</div>
-                <div>
-                  <div className="frs-batch-label">Class / Batch</div>
-                  <div className="frs-batch-name">{batchName}</div>
-                </div>
-              </div>
               <div className="frs-stats-row">
                 <div className="frs-stat-pill">
                   <div className="frs-stat-pill-val">{students.length}</div>
