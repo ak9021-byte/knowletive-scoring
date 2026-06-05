@@ -269,7 +269,7 @@ export default function ScoreEntryFullRange({
         .frs-total-out { font-size:16px; color:#94a3b8; font-weight:500; }
         .frs-tier-pill { display:inline-block; padding:4px 14px; border-radius:20px; font-size:12px; font-weight:700; margin-top:4px; }
 
-        .frs-metrics-area { flex:1; padding:24px 32px; overflow-y:auto; }
+        .frs-metrics-area { flex:1; padding:24px 32px; overflow-y:auto; max-height:calc(100vh - 200px); }
         .frs-metric-row {
           display:flex; align-items:center; gap:16px;
           padding:18px 0; border-bottom:1px solid #f1f5f9;
@@ -296,8 +296,10 @@ export default function ScoreEntryFullRange({
         }
 
         .frs-footer {
-          background:#fff; border-top:1px solid #e5e9f5;
-          padding:14px 32px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+        background:#fff; border-top:1px solid #e5e9f5;
+        padding:14px 32px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+        position:sticky; bottom:0; z-index:10;
+        box-shadow:0 -4px 16px rgba(0,0,0,0.06);
         }
         .frs-autosave-note { font-size:12px; color:#64748b; display:flex; align-items:center; gap:6px; }
         .frs-footer-btns { display:flex; gap:10px; }
