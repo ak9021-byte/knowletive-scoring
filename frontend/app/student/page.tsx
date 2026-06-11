@@ -1,20 +1,36 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { getMyScores, getLeaderboard, getStudentRewards } from "@/lib/api"
+import { getMyScores, getLeaderboard, getStudentRewards, updateStudentPhoto } from "@/lib/api"
 
 export default function StudentPage() {
   const router = useRouter()
   const [student, setStudent] = useState<any>(null)
-  const [scores, setScores] = useState<any[]>([])
+  const [scores, setScores]   = useState<any[]>([])
   const [leaderboard, setLeaderboard] = useState<any[]>([])
   const [rewards, setRewards] = useState<any[]>([])
+  const [photo, setPhoto]     = useState<string>("")
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const [toast, setToast]     = useState<{ msg: string; type: string } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const showToast = (msg: string, type = "success") => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   useEffect(() => {
     const s = localStorage.getItem("student")
     if (!s) { router.push("/login"); return }
     const parsed = JSON.parse(s)
     setStudent(parsed)
+    // Load photo: prefer server photo, then localStorage cache
+    if (parsed.photo) {
+      setPhoto(parsed.photo)
+    } else {
+      const cached = localStorage.getItem(`student_photo_${parsed.id}`)
+      if (cached) setPhoto(cached)
+    }
     fetchData(parsed.id)
   }, [])
 
@@ -23,7 +39,7 @@ export default function StudentPage() {
       const [s, lb, r] = await Promise.all([
         getMyScores(id),
         getLeaderboard(),
-        getStudentRewards(id)
+        getStudentRewards(id),
       ])
       setScores(s.data)
       setLeaderboard(lb.data)
@@ -31,19 +47,45 @@ export default function StudentPage() {
     } catch {}
   }
 
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 1000000) { showToast("Photo must be under 1MB", "warning"); return }
+    setPhotoUploading(true)
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target?.result as string
+      try {
+        await updateStudentPhoto(student.id, dataUrl)
+        setPhoto(dataUrl)
+        // Persist locally so it survives refresh
+        localStorage.setItem(`student_photo_${student.id}`, dataUrl)
+        // Update student object in localStorage
+        const updated = { ...student, photo: dataUrl }
+        localStorage.setItem("student", JSON.stringify(updated))
+        setStudent(updated)
+        showToast("Profile photo updated! ✅")
+      } catch {
+        showToast("Error updating photo", "error")
+      }
+      setPhotoUploading(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
   const latest = scores[0]
   const myRank = leaderboard.findIndex((l: any) => l.name === student?.name) + 1
 
   const levelColor = (t: number) => t >= 90 ? "#7c3aed" : t >= 75 ? "#2563eb" : t >= 50 ? "#d97706" : "#dc2626"
-  const levelBg = (t: number) => t >= 90 ? "#f5f3ff" : t >= 75 ? "#eff6ff" : t >= 50 ? "#fffbeb" : "#fef2f2"
+  const levelBg    = (t: number) => t >= 90 ? "#f5f3ff" : t >= 75 ? "#eff6ff" : t >= 50 ? "#fffbeb" : "#fef2f2"
   const levelLabel = (t: number) => t >= 90 ? "🟣 Pro" : t >= 75 ? "🔵 Skilled" : t >= 50 ? "🟡 Learner" : "🔴 Beginner"
 
   const categories = [
     { key: "attendance", label: "Attendance", max: 10, icon: "🟢", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-    { key: "speak_up", label: "Speak Up", max: 15, icon: "🎤", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
-    { key: "activity", label: "Activity", max: 20, icon: "⚡", color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
-    { key: "technical", label: "Technical", max: 30, icon: "💻", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
-    { key: "behavior", label: "Behavior", max: 10, icon: "🤝", color: "#db2777", bg: "#fdf2f8", border: "#fbcfe8" },
+    { key: "speak_up",   label: "Speak Up",   max: 15, icon: "🎤", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
+    { key: "activity",   label: "Activity",   max: 20, icon: "⚡", color: "#d97706", bg: "#fffbeb", border: "#fde68a" },
+    { key: "technical",  label: "Technical",  max: 30, icon: "💻", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+    { key: "behavior",   label: "Behavior",   max: 10, icon: "🤝", color: "#db2777", bg: "#fdf2f8", border: "#fbcfe8" },
     { key: "initiative", label: "Initiative", max: 15, icon: "🚀", color: "#ea580c", bg: "#fff7ed", border: "#fed7aa" },
   ]
 
@@ -56,22 +98,124 @@ export default function StudentPage() {
   return (
     <>
       <style>{`
-        *{box-sizing:border-box;}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes barFill{from{width:0%}to{width:var(--pct)}}
-        .fade{animation:fadeUp 0.45s cubic-bezier(.16,1,.3,1) forwards;}
-        .card{background:#fff;border-radius:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06),0 4px 16px rgba(0,0,0,0.04);border:1px solid #f1f5f9;}
-        .bar{height:8px;border-radius:99px;animation:barFill 1s cubic-bezier(.16,1,.3,1) forwards;}
-        @media(max-width:640px){
-          .hero-inner{flex-direction:column!important;gap:16px!important;}
-          .badges{flex-wrap:wrap!important;}
-          .cat-row{flex-direction:column!important;gap:6px!important;}
+        * { box-sizing: border-box; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes barFill { from { width:0% } to { width:var(--pct) } }
+        @keyframes toastIn { from { transform:translateY(20px); opacity:0 } to { transform:translateY(0); opacity:1 } }
+        .fade { animation: fadeUp 0.45s cubic-bezier(.16,1,.3,1) forwards; }
+        .card { background:#fff; border-radius:16px; box-shadow:0 1px 4px rgba(0,0,0,0.06),0 4px 16px rgba(0,0,0,0.04); border:1px solid #f1f5f9; }
+        .bar  { height:8px; border-radius:99px; animation:barFill 1s cubic-bezier(.16,1,.3,1) forwards; }
+
+        /* Avatar wrapper */
+        .avatar-wrap {
+          position: relative;
+          width: 80px;
+          height: 80px;
+          flex-shrink: 0;
+          cursor: pointer;
+        }
+        .avatar-img {
+          width: 80px;
+          height: 80px;
+          border-radius: 22px;
+          object-fit: cover;
+          border: 3px solid rgba(255,255,255,0.5);
+          display: block;
+        }
+        .avatar-initials {
+          width: 80px;
+          height: 80px;
+          border-radius: 22px;
+          background: rgba(255,255,255,0.2);
+          border: 3px solid rgba(255,255,255,0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 34px;
+          font-weight: 800;
+          color: #fff;
+        }
+        .avatar-overlay {
+          position: absolute;
+          inset: 0;
+          border-radius: 22px;
+          background: rgba(0,0,0,0.45);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          opacity: 0;
+          transition: opacity 0.2s;
+          color: #fff;
+          font-size: 11px;
+          font-weight: 700;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .avatar-wrap:hover .avatar-overlay { opacity: 1; }
+        .avatar-edit-badge {
+          position: absolute;
+          bottom: -4px;
+          right: -4px;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: #fff;
+          border: 2px solid rgba(255,255,255,0.6);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+          color: #4f46e5;
+        }
+        .uploading-ring {
+          position: absolute;
+          inset: 0;
+          border-radius: 22px;
+          border: 3px solid transparent;
+          border-top-color: #fff;
+          animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast-box {
+          position: fixed;
+          bottom: 24px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 9999;
+          padding: 12px 22px;
+          border-radius: 12px;
+          font-size: 13px;
+          font-weight: 700;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+          animation: toastIn 0.3s ease;
+          white-space: nowrap;
+        }
+
+        @media(max-width:640px) {
+          .hero-inner { flex-direction:column!important; gap:16px!important; }
+          .badges { flex-wrap:wrap!important; }
+          .cat-row { flex-direction:column!important; gap:6px!important; }
         }
       `}</style>
 
+      {/* ── Toast ── */}
+      {toast && (
+        <div className="toast-box" style={{
+          background: toast.type === "error" ? "#fef2f2" : toast.type === "warning" ? "#fffbeb" : "#f0fdf4",
+          color:      toast.type === "error" ? "#dc2626" : toast.type === "warning" ? "#b45309" : "#15803d",
+          border: `1px solid ${toast.type === "error" ? "#fecaca" : toast.type === "warning" ? "#fde68a" : "#bbf7d0"}`,
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
       <div style={{ minHeight: "100vh", background: "#f8f9fc", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div style={{ background: "#fff", borderBottom: "1px solid #f1f5f9", padding: "0 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
           <div style={{ maxWidth: 760, margin: "0 auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0" }}>
@@ -82,21 +226,58 @@ export default function StudentPage() {
                   <div style={{ fontSize: 11, color: "#94a3b8" }}>Student Portal</div>
                 </div>
               </div>
-              <button onClick={() => { localStorage.removeItem("student"); router.push("/login") }}
-                style={{ padding: "8px 16px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#fff", color: "#475569", cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'Plus Jakarta Sans',sans-serif", transition: "all 0.2s" }}>
+              <button
+                onClick={() => { localStorage.removeItem("student"); router.push("/login") }}
+                style={{ padding: "8px 16px", borderRadius: 10, border: "1.5px solid #e2e8f0", background: "#fff", color: "#475569", cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: "'Plus Jakarta Sans',sans-serif", transition: "all 0.2s" }}
+              >
                 Sign Out
               </button>
             </div>
           </div>
         </div>
 
-        {/* Hero */}
+        {/* ── Hero ── */}
         <div style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)", padding: "32px 24px" }}>
           <div style={{ maxWidth: 760, margin: "0 auto" }}>
             <div className="hero-inner" style={{ display: "flex", alignItems: "center", gap: 20 }}>
-              <div style={{ width: 72, height: 72, borderRadius: 20, background: "rgba(255,255,255,0.2)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, fontWeight: 800, color: "#fff", flexShrink: 0 }}>
-                {student.name.charAt(0).toUpperCase()}
+
+              {/* ── Clickable Avatar ── */}
+              <div
+                className="avatar-wrap"
+                onClick={() => fileRef.current?.click()}
+                title="Click to change profile photo"
+              >
+                {photo ? (
+                  <img src={photo} className="avatar-img" alt={student.name} />
+                ) : (
+                  <div className="avatar-initials">
+                    {student.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                {/* Hover overlay */}
+                <div className="avatar-overlay">
+                  <span style={{ fontSize: 18 }}>📷</span>
+                  <span>Change</span>
+                </div>
+                {/* Edit badge */}
+                {!photoUploading && (
+                  <div className="avatar-edit-badge">✎</div>
+                )}
+                {/* Uploading spinner */}
+                {photoUploading && (
+                  <div className="uploading-ring" />
+                )}
               </div>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handlePhotoChange}
+              />
+
               <div>
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", fontWeight: 600, letterSpacing: "1px", textTransform: "uppercase" }}>Welcome back</div>
                 <h1 style={{ fontFamily: "'Outfit',sans-serif", fontSize: 26, fontWeight: 800, color: "#fff", margin: "4px 0", letterSpacing: "-0.5px" }}>{student.name}</h1>
@@ -111,12 +292,16 @@ export default function StudentPage() {
                     </span>
                   )}
                 </div>
+                {/* Photo hint */}
+                <div style={{ marginTop: 10, fontSize: 11, color: "rgba(255,255,255,0.5)", display: "flex", alignItems: "center", gap: 4 }}>
+                  📷 Click your photo to update it
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Content */}
+        {/* ── Content ── */}
         <div style={{ maxWidth: 760, margin: "0 auto", padding: "24px" }}>
 
           {/* Today's Score */}
@@ -133,7 +318,6 @@ export default function StudentPage() {
                   <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: levelBg(latest.total), color: levelColor(latest.total), display: "inline-block", marginTop: 4 }}>{levelLabel(latest.total)}</span>
                 </div>
               </div>
-
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {categories.map(cat => {
                   const val = latest[cat.key] || 0
@@ -163,7 +347,7 @@ export default function StudentPage() {
             </div>
           )}
 
-          {/* History */}
+          {/* Score History */}
           {scores.length > 1 && (
             <div className="card fade" style={{ padding: 22, marginBottom: 16, animationDelay: "0.1s" }}>
               <h2 style={{ fontFamily: "'Outfit',sans-serif", fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 16px" }}>📈 Score History</h2>
@@ -193,7 +377,7 @@ export default function StudentPage() {
                   <div key={i} style={{
                     display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 12,
                     background: r.type === "daily" ? "#fffbeb" : r.type === "weekly" ? "#eff6ff" : "#f5f3ff",
-                    border: `1px solid ${r.type === "daily" ? "#fde68a" : r.type === "weekly" ? "#bfdbfe" : "#ddd6fe"}`
+                    border: `1px solid ${r.type === "daily" ? "#fde68a" : r.type === "weekly" ? "#bfdbfe" : "#ddd6fe"}`,
                   }}>
                     <span style={{ fontSize: 24 }}>{r.type === "daily" ? "⭐" : r.type === "weekly" ? "🏅" : "🏆"}</span>
                     <div style={{ flex: 1 }}>
@@ -203,7 +387,7 @@ export default function StudentPage() {
                     <span style={{
                       fontSize: 11, padding: "3px 10px", borderRadius: 20, fontWeight: 700,
                       background: "rgba(255,255,255,0.7)",
-                      color: r.type === "daily" ? "#d97706" : r.type === "weekly" ? "#2563eb" : "#7c3aed"
+                      color: r.type === "daily" ? "#d97706" : r.type === "weekly" ? "#2563eb" : "#7c3aed",
                     }}>{r.type}</span>
                   </div>
                 ))}
@@ -239,15 +423,24 @@ export default function StudentPage() {
             <h2 style={{ fontFamily: "'Outfit',sans-serif", fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 14px" }}>🎯 Level System</h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 }}>
               {[
-                { level: "Beginner", range: "< 50 pts", score: 0 },
-                { level: "Learner", range: "50–74 pts", score: 50 },
-                { level: "Skilled", range: "75–89 pts", score: 75 },
-                { level: "Pro", range: "90+ pts", score: 90 },
+                { level: "Beginner", range: "< 50 pts",  score: 0  },
+                { level: "Learner",  range: "50–74 pts", score: 50 },
+                { level: "Skilled",  range: "75–89 pts", score: 75 },
+                { level: "Pro",      range: "90+ pts",   score: 90 },
               ].map(l => (
-                <div key={l.level} style={{ padding: "14px 16px", borderRadius: 12, background: student.level === l.level ? levelBg(l.score) : "#f8fafc", border: `1.5px solid ${student.level === l.level ? levelColor(l.score) + "33" : "#f1f5f9"}`, transition: "all 0.2s" }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: student.level === l.level ? levelColor(l.score) : "#334155" }}>{levelLabel(l.score).split(" ")[1] || levelLabel(l.score)}</div>
+                <div key={l.level} style={{
+                  padding: "14px 16px", borderRadius: 12,
+                  background: student.level === l.level ? levelBg(l.score) : "#f8fafc",
+                  border: `1.5px solid ${student.level === l.level ? levelColor(l.score) + "33" : "#f1f5f9"}`,
+                  transition: "all 0.2s",
+                }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: student.level === l.level ? levelColor(l.score) : "#334155" }}>
+                    {levelLabel(l.score).split(" ")[1] || levelLabel(l.score)}
+                  </div>
                   <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{l.range}</div>
-                  {student.level === l.level && <div style={{ fontSize: 10, color: levelColor(l.score), fontWeight: 700, marginTop: 6, letterSpacing: "0.5px" }}>● YOUR CURRENT LEVEL</div>}
+                  {student.level === l.level && (
+                    <div style={{ fontSize: 10, color: levelColor(l.score), fontWeight: 700, marginTop: 6, letterSpacing: "0.5px" }}>● YOUR CURRENT LEVEL</div>
+                  )}
                 </div>
               ))}
             </div>
