@@ -948,19 +948,9 @@ export default function FacultyPage() {
                     <div key={i} className="reward-row">
                       <span style={{ fontSize:22 }}>{r.type==="daily"?"⭐":r.type==="weekly"?"🏅":"🏆"}</span>
                       <div style={{ flex:1 }}>
-                        {editingId === s.id ? (
-                            <input
-                              value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
-                            />
-                          ) : (
-                            <div style={{ fontSize:14, fontWeight:700 }}>
-                              {s.name}
-                            </div>
-                          )}
-                        
+                        <div style={{ fontSize:14, fontWeight:700 }}>{r.name}</div>
                         <div style={{ fontSize:12, color:"var(--muted)", marginTop:1 }}>{r.title}</div>
-                      </div>
+                      </div>       
                       <div style={{ textAlign:"right" }}>
                         <span className="tier-pill" style={{ background:r.type==="daily"?"#fffbeb":r.type==="weekly"?"#eff6ff":"#f5f3ff", color:r.type==="daily"?"#d97706":r.type==="weekly"?"#2563eb":"#7c3aed", border:`1px solid ${r.type==="daily"?"#fde68a":r.type==="weekly"?"#bfdbfe":"#ddd6fe"}`, fontSize:11 }}>
                           {r.type==="daily"?"🌟 Daily":r.type==="weekly"?"📅 Weekly":"🏆 Monthly"}
