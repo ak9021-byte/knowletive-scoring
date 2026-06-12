@@ -252,10 +252,9 @@ export default function ScoreEntryFullRange({
         .frs-student-roll { font-size:12px; color:#64748b; margin-top:2px; }
 
         /* ✅ Attendance summary badge */
-        .frs-att-badge { display:flex; align-items:center; gap:10px; padding:8px 14px; border-radius:10px; margin-left:8px; }
+        .frs-att-badge { display:flex; align-items:center; gap:14px; padding:8px 14px; border-radius:10px; margin-left:8px; }
         .frs-att-label { font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
-        .frs-att-value { font-size:14px; font-weight:800; }
-        .frs-att-breakdown { font-size:11px; color:#94a3b8; font-weight:500; }
+        .frs-att-breakdown { font-size:11px; color:#94a3b8; font-weight:600; }
 
         .frs-header-actions { display:flex; align-items:center; gap:8px; margin-left:auto; }
         .frs-btn-nav { padding:9px 16px; border-radius:10px; border:1.5px solid #e5e9f5; background:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; display:flex; align-items:center; gap:6px; transition:all 0.2s; }
@@ -464,21 +463,43 @@ export default function ScoreEntryFullRange({
                     {sel.rollNo && <div className="frs-student-roll">Roll No: {sel.rollNo}</div>}
                   </div>
 
-                  {/* ✅ Attendance summary badge */}
+                  {/* ✅ Attendance summary badge with day-wise boxes */}
                   {!attLoading && attMarked > 0 && (
                     <div className="frs-att-badge" style={{
-                      background: getPctColor(attPct) + "12",
+                      background: getPctColor(attPct) + "0c",
                       border: `1.5px solid ${getPctColor(attPct)}33`,
                     }}>
-                      <span style={{fontSize:18}}>✅</span>
-                      <div>
-                        <div className="frs-att-label">Attendance</div>
-                        <div className="frs-att-value" style={{color:getPctColor(attPct)}}>
-                          {attPct}%{" "}
-                          <span className="frs-att-breakdown">
-                            (P:{attPresent} HD:{attHalf} A:{attAbsent})
-                          </span>
+                      <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                        <div style={{display:"flex", alignItems:"center", gap:8}}>
+                          <span className="frs-att-label">Attendance</span>
+                          <span className="frs-att-breakdown">P:{attPresent} · HD:{attHalf} · A:{attAbsent} · H:{attHoliday}</span>
                         </div>
+                        <div style={{display:"flex", gap:4, flexWrap:"wrap"}}>
+                          {Object.entries(attendance)
+                            .sort(([a],[b]) => a.localeCompare(b))
+                            .slice(-7)
+                            .map(([d, status]) => {
+                              const lbl = status === "present" ? "P" : status === "half_day" ? "HD" : status === "absent" ? "A" : status === "holiday" ? "H" : "—"
+                              const clr = status === "present" ? "#059669" : status === "half_day" ? "#2563eb" : status === "absent" ? "#dc2626" : status === "holiday" ? "#d97706" : "#94a3b8"
+                              const bg  = status === "present" ? "#ecfdf5" : status === "half_day" ? "#eff6ff" : status === "absent" ? "#fef2f2" : status === "holiday" ? "#fffbeb" : "#f8f9fe"
+                              const brd = status === "present" ? "#a7f3d0" : status === "half_day" ? "#bfdbfe" : status === "absent" ? "#fecaca" : status === "holiday" ? "#fde68a" : "#e5e9f5"
+                              const dl = new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day:"numeric", month:"short" })
+                              return (
+                                <div key={d} title={dl} style={{
+                                  display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                                  minWidth:34, padding:"3px 4px", borderRadius:6,
+                                  background:bg, border:`1px solid ${brd}`, color:clr,
+                                }}>
+                                  <span style={{fontSize:9, fontWeight:600, color:"#94a3b8"}}>{dl}</span>
+                                  <span style={{fontSize:11, fontWeight:800}}>{lbl}</span>
+                                </div>
+                              )
+                            })}
+                        </div>
+                      </div>
+                      <div style={{textAlign:"right", marginLeft:4}}>
+                        <div style={{fontSize:22, fontWeight:800, color:getPctColor(attPct), lineHeight:1}}>{attPct}%</div>
+                        <div style={{fontSize:10, color:"#94a3b8"}}>{attMarked} days</div>
                       </div>
                     </div>
                   )}
