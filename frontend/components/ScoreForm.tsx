@@ -1,6 +1,8 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
 const METRICS = [
   { key: "attendance", label: "Attendance", max: 10,  icon: "🟢", color: "#10b981", bg: "#ecfdf5", border: "#6ee7b7", steps: [0,1,2,3,4,5,6,7,8,9,10] },
   { key: "speak_up",   label: "Speak Up",   max: 15,  icon: "🎤", color: "#8b5cf6", bg: "#f5f3ff", border: "#c4b5fd", steps: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15] },
@@ -15,6 +17,9 @@ const tierInfo = (t: number) =>
   : t >= 75 ? { label: "Good",    color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" }
   : t >= 50 ? { label: "Average", color: "#d97706", bg: "#fffbeb", border: "#fde68a" }
   :           { label: "Beginner",color: "#dc2626", bg: "#fef2f2", border: "#fecaca" }
+
+const getPctColor = (pct: number) =>
+  pct >= 90 ? "#059669" : pct >= 75 ? "#2563eb" : pct >= 50 ? "#d97706" : "#dc2626"
 
 const avatarGrads = [
   ["#667eea","#764ba2"],["#f093fb","#f5576c"],["#4facfe","#00f2fe"],
@@ -74,6 +79,10 @@ export default function ScoreEntryFullRange({
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: string } | null>(null)
 
+  // ✅ Attendance summary for selected student
+  const [attendance, setAttendance] = useState<Record<string, string>>({})
+  const [attLoading, setAttLoading] = useState(false)
+
   const showToast = (msg: string, type = "success") => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
@@ -110,6 +119,31 @@ export default function ScoreEntryFullRange({
 
   const sel = filteredStudents[selectedIdx] || filteredStudents[0]
   const selRealIdx = sel ? students.findIndex(s => s.id === sel.id) : 0
+
+  // ✅ Fetch attendance summary whenever selected student changes
+  useEffect(() => {
+    if (!sel) return
+    setAttLoading(true)
+    fetch(`${API}/attendance/student/${sel.id}`)
+      .then(r => r.json())
+      .then(data => {
+        const map: Record<string, string> = {}
+        ;(Array.isArray(data) ? data : []).forEach((r: any) => {
+          map[r.date] = r.status
+        })
+        setAttendance(map)
+      })
+      .catch(() => setAttendance({}))
+      .finally(() => setAttLoading(false))
+  }, [sel?.id])
+
+  const attVals = Object.values(attendance)
+  const attPresent = attVals.filter(v => v === "present").length
+  const attHalf    = attVals.filter(v => v === "half_day").length
+  const attAbsent  = attVals.filter(v => v === "absent").length
+  const attHoliday = attVals.filter(v => v === "holiday").length
+  const attMarked  = attPresent + attHalf + attAbsent + attHoliday
+  const attPct     = attMarked > 0 ? Math.round(((attPresent + attHalf * 0.5) / attMarked) * 100) : 0
 
   const handleSave = async (single = false) => {
     setSaving(true)
@@ -171,10 +205,6 @@ export default function ScoreEntryFullRange({
         /* Left panel */
         .frs-left { background: #fff; border-right: 1px solid #e5e9f5; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
         .frs-left-header { padding: 16px 20px 12px; border-bottom: 1px solid #e5e9f5; flex-shrink: 0; }
-        .frs-batch-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-        .frs-batch-icon { width:36px; height:36px; border-radius:10px; background:#eef0ff; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
-        .frs-batch-label { font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:1px; }
-        .frs-batch-name { font-size:14px; font-weight:700; color:#0f172a; }
         .frs-stats-row { display:flex; gap:8px; }
         .frs-stat-pill { flex:1; background:#f8f9fe; border:1px solid #e5e9f5; border-radius:8px; padding:8px 10px; text-align:center; }
         .frs-stat-pill-val { font-size:18px; font-weight:800; color:#5b5ef4; }
@@ -203,7 +233,6 @@ export default function ScoreEntryFullRange({
         /* Right panel */
         .frs-right { display:flex; flex-direction:column; height:100%; overflow:hidden; }
 
-        /* ✅ Sticky student header */
         .frs-right-header {
           padding: 16px 32px;
           background: #fff;
@@ -216,12 +245,18 @@ export default function ScoreEntryFullRange({
           top: 0;
           z-index: 10;
           box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+          flex-wrap: wrap;
         }
         .frs-student-avatar-lg { width:48px; height:48px; border-radius:13px; flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; color:#fff; }
         .frs-student-name-lg { font-size:18px; font-weight:800; color:#0f172a; }
         .frs-student-roll { font-size:12px; color:#64748b; margin-top:2px; }
 
-        /* ✅ Nav + Submit in header */
+        /* ✅ Attendance summary badge */
+        .frs-att-badge { display:flex; align-items:center; gap:10px; padding:8px 14px; border-radius:10px; margin-left:8px; }
+        .frs-att-label { font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+        .frs-att-value { font-size:14px; font-weight:800; }
+        .frs-att-breakdown { font-size:11px; color:#94a3b8; font-weight:500; }
+
         .frs-header-actions { display:flex; align-items:center; gap:8px; margin-left:auto; }
         .frs-btn-nav { padding:9px 16px; border-radius:10px; border:1.5px solid #e5e9f5; background:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a; display:flex; align-items:center; gap:6px; transition:all 0.2s; }
         .frs-btn-nav:hover:not(:disabled) { background:#f8f9fe; border-color:#c7d2fe; }
@@ -230,14 +265,12 @@ export default function ScoreEntryFullRange({
         .frs-btn-save:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(91,94,244,0.4); }
         .frs-btn-save:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
 
-        /* Total score on right */
         .frs-total-wrap { text-align:right; padding-left:16px; border-left:1px solid #f1f5f9; }
         .frs-total-label { font-size:10px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:1px; }
         .frs-total-score { font-size:32px; font-weight:800; line-height:1; }
         .frs-total-out { font-size:14px; color:#94a3b8; font-weight:500; }
         .frs-tier-pill { display:inline-block; padding:3px 12px; border-radius:20px; font-size:11px; font-weight:700; margin-top:4px; }
 
-        /* Metrics scrollable area */
         .frs-metrics-area { flex:1; padding:20px 32px; overflow-y:auto; }
         .frs-metric-row { display:flex; align-items:center; gap:16px; padding:16px 0; border-bottom:1px solid #f1f5f9; }
         .frs-metric-row:last-child { border-bottom:none; }
@@ -249,15 +282,12 @@ export default function ScoreEntryFullRange({
         .frs-score-btn:hover { border-color:#a5b4fc; color:#5b5ef4; }
         .frs-score-btn.selected { color:#fff; border-color:transparent; box-shadow:0 2px 8px rgba(0,0,0,0.15); transform:scale(1.08); }
 
-        /* Footer — autosave note only */
         .frs-footer { background:#fff; border-top:1px solid #e5e9f5; padding:10px 32px; display:flex; align-items:center; flex-shrink:0; }
         .frs-autosave-note { font-size:12px; color:#94a3b8; display:flex; align-items:center; gap:6px; }
 
-        /* Toast */
         .frs-toast { position:fixed; bottom:28px; right:28px; z-index:9999; padding:12px 20px; border-radius:12px; font-size:13px; font-weight:700; box-shadow:0 8px 32px rgba(0,0,0,0.15); animation:slideUp 0.3s ease; font-family:'Plus Jakarta Sans',sans-serif; }
         @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
 
-        /* Summary overlay */
         .frs-overlay { position:fixed; inset:0; z-index:200; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; }
         .frs-summary-card { background:#fff; border-radius:20px; padding:28px 32px; width:560px; max-height:80vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.2); }
         .frs-summary-title { font-size:18px; font-weight:800; color:#0f172a; margin-bottom:18px; }
@@ -274,12 +304,13 @@ export default function ScoreEntryFullRange({
           .frs-btn-grid { gap:4px; }
           .frs-score-btn { min-width:36px; height:34px; font-size:12px; }
           .frs-header-actions { flex-wrap:wrap; }
+          .frs-total-wrap { border-left:none; padding-left:0; }
+          .frs-att-badge { margin-left:0; }
         }
       `}</style>
 
       <div className="frs-root">
 
-        {/* Toast */}
         {toast && (
           <div className="frs-toast" style={{
             background: toast.type==="error"?"#fef2f2":toast.type==="warning"?"#fffbeb":"#f0fdf4",
@@ -290,7 +321,6 @@ export default function ScoreEntryFullRange({
           </div>
         )}
 
-        {/* Summary overlay */}
         {showSummary && (
           <div className="frs-overlay" onClick={() => setShowSummary(false)}>
             <div className="frs-summary-card" onClick={e => e.stopPropagation()}>
@@ -331,7 +361,6 @@ export default function ScoreEntryFullRange({
           </div>
         )}
 
-        {/* Top bar */}
         <div className="frs-topbar">
           <div>
             <div className="frs-title">📝 Score Entry <span style={{fontSize:15,fontWeight:600,color:"#8b5cf6"}}>(Full Range Mode)</span></div>
@@ -423,7 +452,6 @@ export default function ScoreEntryFullRange({
             return (
               <div className="frs-right">
 
-                {/* ✅ Sticky student header with nav + submit */}
                 <div className="frs-right-header">
                   <div className="frs-student-avatar-lg" style={{background:`linear-gradient(135deg,${g1},${g2})`}}>
                     {sel.photo
@@ -436,7 +464,30 @@ export default function ScoreEntryFullRange({
                     {sel.rollNo && <div className="frs-student-roll">Roll No: {sel.rollNo}</div>}
                   </div>
 
-                  {/* ✅ Nav + Submit buttons in header */}
+                  {/* ✅ Attendance summary badge */}
+                  {!attLoading && attMarked > 0 && (
+                    <div className="frs-att-badge" style={{
+                      background: getPctColor(attPct) + "12",
+                      border: `1.5px solid ${getPctColor(attPct)}33`,
+                    }}>
+                      <span style={{fontSize:18}}>✅</span>
+                      <div>
+                        <div className="frs-att-label">Attendance</div>
+                        <div className="frs-att-value" style={{color:getPctColor(attPct)}}>
+                          {attPct}%{" "}
+                          <span className="frs-att-breakdown">
+                            (P:{attPresent} HD:{attHalf} A:{attAbsent})
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {attLoading && (
+                    <div className="frs-att-badge" style={{background:"#f8f9fe", border:"1.5px solid #e5e9f5"}}>
+                      <span style={{fontSize:12, color:"#94a3b8"}}>Loading attendance…</span>
+                    </div>
+                  )}
+
                   <div className="frs-header-actions">
                     <button className="frs-btn-nav" onClick={goPrev} disabled={selectedIdx === 0}>
                       ← Prev
@@ -458,7 +509,6 @@ export default function ScoreEntryFullRange({
                     </button>
                   </div>
 
-                  {/* Total score */}
                   <div className="frs-total-wrap">
                     <div className="frs-total-label">Total Score</div>
                     <div>
@@ -471,7 +521,6 @@ export default function ScoreEntryFullRange({
                   </div>
                 </div>
 
-                {/* Metrics */}
                 <div className="frs-metrics-area">
                   {METRICS.map(m => {
                     const val = sc[m.key]
@@ -502,7 +551,6 @@ export default function ScoreEntryFullRange({
                   })}
                 </div>
 
-                {/* Footer — autosave note only */}
                 <div className="frs-footer">
                   <div className="frs-autosave-note">
                     <span style={{fontSize:16}}>ℹ️</span>
