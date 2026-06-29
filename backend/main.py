@@ -1,11 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from app.routers import students, scores, attendance
+from app.routers import students, scores, attendance, interpersonal_skills
 from app.models.student import Student
 from app.models.score import Score
 from app.models.reward import Reward
 from app.models.attendance import Attendance
+from app.models.interpersonal_skill import InterpersonalSkill
 from sqlalchemy import text
 
 Base.metadata.create_all(bind=engine)
@@ -16,6 +17,22 @@ try:
         conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS photo TEXT"))
         conn.execute(text("ALTER TABLE daily_scores ADD COLUMN IF NOT EXISTS score_type VARCHAR DEFAULT 'daily'"))
         conn.execute(text("UPDATE daily_scores SET score_type = 'daily' WHERE score_type IS NULL"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS interpersonal_skills (
+                id SERIAL PRIMARY KEY,
+                student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                week INTEGER NOT NULL,
+                communication INTEGER DEFAULT 0,
+                dressing INTEGER DEFAULT 0,
+                gestures INTEGER DEFAULT 0,
+                time_management INTEGER DEFAULT 0,
+                posture INTEGER DEFAULT 0,
+                teamwork INTEGER DEFAULT 0,
+                confidence INTEGER DEFAULT 0,
+                leadership INTEGER DEFAULT 0,
+                UNIQUE(student_id, week)
+            )
+        """))
         conn.commit()
 except:
     pass
@@ -33,6 +50,7 @@ app.add_middleware(
 app.include_router(students.router)
 app.include_router(scores.router)
 app.include_router(attendance.router)
+app.include_router(interpersonal_skills.router)
 
 @app.get("/")
 def root():
