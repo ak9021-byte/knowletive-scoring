@@ -20,3 +20,4 @@ class Student(Base):
     rewards = relationship("Reward", back_populates="student")
     attendance = relationship("Attendance", back_populates="student")
     interpersonal_skills = relationship("InterpersonalSkill", back_populates="student")
+    
