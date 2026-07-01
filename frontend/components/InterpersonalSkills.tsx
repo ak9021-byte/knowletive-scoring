@@ -2,15 +2,17 @@
 import { useState, useEffect } from "react"
 import { getStudents } from "@/lib/api"
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
 const SKILLS = [
-  { key: "communication",    label: "Communication",    icon: "🗣️" },
-  { key: "dressing",         label: "Dressing",         icon: "👔" },
-  { key: "gestures",         label: "Gestures",         icon: "🤲" },
-  { key: "time_management",  label: "Time Management",  icon: "⏰" },
-  { key: "posture",          label: "Posture",          icon: "🧍" },
-  { key: "teamwork",         label: "Team Work",        icon: "🤝" },
-  { key: "confidence",       label: "Confidence",       icon: "💪" },
-  { key: "leadership",       label: "Leadership",       icon: "👑" },
+  { key: "communication",   label: "Communication",   icon: "🗣️" },
+  { key: "dressing",        label: "Dressing",        icon: "👔" },
+  { key: "gestures",        label: "Gestures",        icon: "🤲" },
+  { key: "time_management", label: "Time Management", icon: "⏰" },
+  { key: "posture",         label: "Posture",         icon: "🧍" },
+  { key: "teamwork",        label: "Team Work",       icon: "🤝" },
+  { key: "confidence",      label: "Confidence",      icon: "💪" },
+  { key: "leadership",      label: "Leadership",      icon: "👑" },
 ]
 
 const MAX_MARK = 10
@@ -23,16 +25,8 @@ const avatarColors = [
   ["#a18cd1","#fbc2eb"],["#5b5ef4","#818cf8"],
 ]
 
-// { week: { studentName: { skillKey: mark } } }
 type MarksMap = Record<string, Record<string, Record<string, number>>>
-
-const getWeekNumber = () => {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), 0, 1)
-  return Math.ceil(((now.getTime() - start.getTime()) / 86400000 + start.getDay() + 1) / 7)
-}
-
-const weekLabel = (w: string) => `Week ${w}`
+// { week: { studentName: { skillKey: mark } } }
 
 const scoreColor = (pct: number) =>
   pct >= 80 ? "#059669" : pct >= 60 ? "#2563eb" : pct >= 40 ? "#d97706" : "#dc2626"
@@ -40,46 +34,85 @@ const scoreColor = (pct: number) =>
 const scoreBg = (pct: number) =>
   pct >= 80 ? "#ecfdf5" : pct >= 60 ? "#eff6ff" : pct >= 40 ? "#fffbeb" : "#fef2f2"
 
+const getWeekNumber = () => {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 1)
+  return Math.ceil(((now.getTime() - start.getTime()) / 86400000 + start.getDay() + 1) / 7)
+}
+
 export default function InterpersonalSkills() {
-  const [students, setStudents] = useState<string[]>([])
-  const [marks, setMarks] = useState<MarksMap>({})
+  const [students, setStudents]         = useState<any[]>([]) // full student objects with id + name
+  const [marks, setMarks]               = useState<MarksMap>({})
   const [selectedWeek, setSelectedWeek] = useState(String(getWeekNumber()))
-  const [selectedStudent, setSelectedStudent] = useState("")
-  const [view, setView] = useState<"entry" | "history">("entry")
-  const [loading, setLoading] = useState(true)
+  const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  const [view, setView]                 = useState<"entry" | "history">("entry")
+  const [loading, setLoading]           = useState(true)
+  const [saving, setSaving]             = useState(false)
+  const [saveMsg, setSaveMsg]           = useState("")
   const [historyStudent, setHistoryStudent] = useState("")
 
+  // ── Load students from backend ──────────────────────────
   useEffect(() => {
     getStudents()
       .then(res => {
-        const names = res.data.map((s: any) => s.name)
-        setStudents(names)
-        if (names.length > 0) setSelectedStudent(names[0])
+        setStudents(res.data)
+        if (res.data.length > 0) setSelectedStudent(res.data[0])
       })
       .catch(() => setStudents([]))
       .finally(() => setLoading(false))
   }, [])
 
+  // ── Load marks: try backend first, fallback to localStorage ──
   useEffect(() => {
+    // Load localStorage immediately for fast UI
     try {
       const d = localStorage.getItem(SKILLS_KEY)
       if (d) setMarks(JSON.parse(d))
     } catch {}
+
+    // Then fetch from backend and merge
+    fetch(`${API}/skills/all`)
+      .then(r => r.json())
+      .then((data: any[]) => {
+        if (!Array.isArray(data)) return
+        const merged: MarksMap = {}
+        data.forEach(entry => {
+          const week = String(entry.week)
+          const name = entry.student_name
+          if (!merged[week]) merged[week] = {}
+          merged[week][name] = {
+            communication:   entry.communication,
+            dressing:        entry.dressing,
+            gestures:        entry.gestures,
+            time_management: entry.time_management,
+            posture:         entry.posture,
+            teamwork:        entry.teamwork,
+            confidence:      entry.confidence,
+            leadership:      entry.leadership,
+          }
+        })
+        setMarks(merged)
+        localStorage.setItem(SKILLS_KEY, JSON.stringify(merged))
+      })
+      .catch(() => {}) // silent fail, localStorage already loaded
   }, [])
 
-  const persist = (m: MarksMap) => localStorage.setItem(SKILLS_KEY, JSON.stringify(m))
+  const persist = (m: MarksMap) => {
+    localStorage.setItem(SKILLS_KEY, JSON.stringify(m))
+  }
 
-  const getMark = (week: string, student: string, skill: string) =>
-    marks[week]?.[student]?.[skill] ?? 0
+  const getMark = (week: string, studentName: string, skill: string) =>
+    marks[week]?.[studentName]?.[skill] ?? 0
 
-  const setMark = (week: string, student: string, skill: string, val: number) => {
+  // ── setMark: update local state + localStorage ───────────
+  const setMark = (week: string, student: any, skill: string, val: number) => {
     const v = Math.max(0, Math.min(MAX_MARK, val))
     const updated: MarksMap = {
       ...marks,
       [week]: {
         ...(marks[week] || {}),
-        [student]: {
-          ...(marks[week]?.[student] || {}),
+        [student.name]: {
+          ...(marks[week]?.[student.name] || {}),
           [skill]: v,
         },
       },
@@ -88,18 +121,56 @@ export default function InterpersonalSkills() {
     persist(updated)
   }
 
-  const totalForStudent = (week: string, student: string) =>
-    SKILLS.reduce((sum, s) => sum + getMark(week, student, s.key), 0)
+  // ── Save current student's week to backend ───────────────
+  const saveToBackend = async () => {
+    if (!selectedStudent) return
+    setSaving(true)
+    setSaveMsg("")
+    const weekData = marks[selectedWeek]?.[selectedStudent.name] || {}
+    const payload = {
+      student_id:      selectedStudent.id,
+      week:            parseInt(selectedWeek),
+      communication:   weekData.communication   || 0,
+      dressing:        weekData.dressing        || 0,
+      gestures:        weekData.gestures        || 0,
+      time_management: weekData.time_management || 0,
+      posture:         weekData.posture         || 0,
+      teamwork:        weekData.teamwork        || 0,
+      confidence:      weekData.confidence      || 0,
+      leadership:      weekData.leadership      || 0,
+    }
+    try {
+      const res = await fetch(`${API}/skills/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        setSaveMsg("✅ Saved!")
+      } else {
+        setSaveMsg("❌ Error saving")
+      }
+    } catch {
+      setSaveMsg("❌ Network error")
+    }
+    setSaving(false)
+    setTimeout(() => setSaveMsg(""), 2500)
+  }
+
+  const totalForStudent = (week: string, studentName: string) =>
+    SKILLS.reduce((sum, s) => sum + getMark(week, studentName, s.key), 0)
 
   const allWeeks = Object.keys(marks).sort((a, b) => Number(b) - Number(a))
   const weeksTracked = allWeeks.length
 
-  const avgForStudent = (student: string) => {
-    const weeks = allWeeks.filter(w => marks[w]?.[student])
+  const avgForStudent = (studentName: string) => {
+    const weeks = allWeeks.filter(w => marks[w]?.[studentName])
     if (weeks.length === 0) return 0
-    const total = weeks.reduce((sum, w) => sum + totalForStudent(w, student), 0)
+    const total = weeks.reduce((sum, w) => sum + totalForStudent(w, studentName), 0)
     return Math.round(total / weeks.length)
   }
+
+  const studentNames = students.map(s => s.name)
 
   const inputStyle: React.CSSProperties = {
     width: 64, padding: "8px 6px", border: "1.5px solid #e5e9f5",
@@ -129,9 +200,9 @@ export default function InterpersonalSkills() {
       {/* Stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
         {[
-          { label: "Total Students",  value: loading ? "..." : students.length, icon: "👥", color: "#6366f1", bg: "#eef0ff" },
-          { label: "Weeks Tracked",   value: `${weeksTracked} / ${TOTAL_WEEKS}`, icon: "📅", color: "#059669", bg: "#ecfdf5" },
-          { label: "Skills Tracked",  value: SKILLS.length,                      icon: "🎯", color: "#d97706", bg: "#fffbeb" },
+          { label: "Total Students", value: loading ? "..." : students.length, icon: "👥", color: "#6366f1", bg: "#eef0ff" },
+          { label: "Weeks Tracked",  value: `${weeksTracked} / ${TOTAL_WEEKS}`, icon: "📅", color: "#059669", bg: "#ecfdf5" },
+          { label: "Skills Tracked", value: SKILLS.length,                       icon: "🎯", color: "#d97706", bg: "#fffbeb" },
         ].map(s => (
           <div key={s.label} style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 16, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.color, borderRadius: "16px 16px 0 0" }} />
@@ -145,44 +216,44 @@ export default function InterpersonalSkills() {
       {/* ══ ENTRY VIEW ══ */}
       {view === "entry" && (
         <>
-          {/* Week + Student selector */}
           <div style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 14, padding: 18, marginBottom: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" as const, display: "block", marginBottom: 7 }}>Week</label>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {Array.from({ length: TOTAL_WEEKS }, (_, i) => String(i + 1)).map(w => (
-                    <button key={w} onClick={() => setSelectedWeek(w)} style={{
-                      padding: "7px 14px", borderRadius: 9, border: `1.5px solid ${selectedWeek === w ? "#5b5ef4" : "#e5e9f5"}`,
-                      background: selectedWeek === w ? "#eef0ff" : "#fff",
-                      color: selectedWeek === w ? "#5b5ef4" : "#64748b",
-                      fontWeight: 700, fontSize: 13, fontFamily: "inherit", cursor: "pointer",
-                    }}>{w}</button>
-                  ))}
-                </div>
+            {/* Week selector */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" as const, display: "block", marginBottom: 7 }}>Week</label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {Array.from({ length: TOTAL_WEEKS }, (_, i) => String(i + 1)).map(w => (
+                  <button key={w} onClick={() => setSelectedWeek(w)} style={{
+                    padding: "7px 14px", borderRadius: 9,
+                    border: `1.5px solid ${selectedWeek === w ? "#5b5ef4" : "#e5e9f5"}`,
+                    background: selectedWeek === w ? "#eef0ff" : "#fff",
+                    color: selectedWeek === w ? "#5b5ef4" : "#64748b",
+                    fontWeight: 700, fontSize: 13, fontFamily: "inherit", cursor: "pointer",
+                  }}>{w}</button>
+                ))}
               </div>
             </div>
 
-            {/* Student tabs */}
+            {/* Student selector */}
             {students.length > 0 && (
               <div style={{ marginTop: 16 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" as const, display: "block", marginBottom: 8 }}>Student</label>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {students.map((name, i) => {
+                  {students.map((s, i) => {
                     const [g1,g2] = avatarColors[i % avatarColors.length]
+                    const isSelected = selectedStudent?.id === s.id
                     return (
-                      <button key={name} onClick={() => setSelectedStudent(name)} style={{
+                      <button key={s.id} onClick={() => setSelectedStudent(s)} style={{
                         display: "flex", alignItems: "center", gap: 7,
                         padding: "6px 12px", borderRadius: 20, cursor: "pointer",
-                        border: `1.5px solid ${selectedStudent === name ? "#5b5ef4" : "#e5e9f5"}`,
-                        background: selectedStudent === name ? "#eef0ff" : "#fafbff",
-                        color: selectedStudent === name ? "#5b5ef4" : "#0f172a",
+                        border: `1.5px solid ${isSelected ? "#5b5ef4" : "#e5e9f5"}`,
+                        background: isSelected ? "#eef0ff" : "#fafbff",
+                        color: isSelected ? "#5b5ef4" : "#0f172a",
                         fontWeight: 600, fontSize: 13, fontFamily: "inherit",
                       }}>
                         <div style={{ width: 22, height: 22, borderRadius: 6, background: `linear-gradient(135deg,${g1},${g2})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#fff" }}>
-                          {name.charAt(0).toUpperCase()}
+                          {s.name.charAt(0).toUpperCase()}
                         </div>
-                        {name}
+                        {s.name}
                       </button>
                     )
                   })}
@@ -191,7 +262,7 @@ export default function InterpersonalSkills() {
             )}
           </div>
 
-          {/* Skills entry table */}
+          {/* Skills entry */}
           {loading ? (
             <div style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 16, padding: "48px 24px", textAlign: "center" }}>
               <p style={{ color: "#94a3b8" }}>Loading students...</p>
@@ -205,23 +276,28 @@ export default function InterpersonalSkills() {
               {/* Card header */}
               <div style={{ padding: "14px 20px", background: "#f8f9fe", borderBottom: "1px solid #e5e9f5", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>
-                  🎯 {selectedStudent} — Week {selectedWeek}
+                  🎯 {selectedStudent.name} — Week {selectedWeek}
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#5b5ef4" }}>
-                  Total: {totalForStudent(selectedWeek, selectedStudent)} / {SKILLS.length * MAX_MARK}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {saveMsg && (
+                    <span style={{ fontSize: 13, fontWeight: 700, color: saveMsg.includes("✅") ? "#059669" : "#dc2626" }}>{saveMsg}</span>
+                  )}
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#5b5ef4" }}>
+                    Total: {totalForStudent(selectedWeek, selectedStudent.name)} / {SKILLS.length * MAX_MARK}
+                  </span>
+                </div>
               </div>
 
               <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
                 {SKILLS.map(skill => {
-                  const val = getMark(selectedWeek, selectedStudent, skill.key)
+                  const val = getMark(selectedWeek, selectedStudent.name, skill.key)
                   const pct = Math.round((val / MAX_MARK) * 100)
                   return (
                     <div key={skill.key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 12, border: "1.5px solid #e5e9f5", background: val > 0 ? scoreBg(pct) : "#fff", transition: "all 0.2s" }}>
                       <span style={{ fontSize: 22, width: 32, textAlign: "center" }}>{skill.icon}</span>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{skill.label}</div>
-                        <div style={{ height: 6, background: "#f1f5f9", borderRadius: 99, overflow: "hidden", marginTop: 6, width: "100%" }}>
+                        <div style={{ height: 6, background: "#f1f5f9", borderRadius: 99, overflow: "hidden", marginTop: 6 }}>
                           <div style={{ height: "100%", width: `${pct}%`, background: scoreColor(pct), borderRadius: 99, transition: "width 0.3s" }} />
                         </div>
                       </div>
@@ -242,18 +318,31 @@ export default function InterpersonalSkills() {
                 })}
               </div>
 
-              {/* Total bar */}
+              {/* Total + Save button */}
               <div style={{ padding: "16px 20px", background: "#f8f9fe", borderTop: "2px solid #e5e9f5", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontWeight: 700, color: "#475569" }}>TOTAL SCORE</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 120, height: 8, background: "#e5e9f5", borderRadius: 99, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${Math.round((totalForStudent(selectedWeek, selectedStudent) / (SKILLS.length * MAX_MARK)) * 100)}%`, background: scoreColor(Math.round((totalForStudent(selectedWeek, selectedStudent) / (SKILLS.length * MAX_MARK)) * 100)), borderRadius: 99, transition: "width 0.3s" }} />
+                    <div style={{ height: "100%", width: `${Math.round((totalForStudent(selectedWeek, selectedStudent.name) / (SKILLS.length * MAX_MARK)) * 100)}%`, background: scoreColor(Math.round((totalForStudent(selectedWeek, selectedStudent.name) / (SKILLS.length * MAX_MARK)) * 100)), borderRadius: 99, transition: "width 0.3s" }} />
                   </div>
-                  <span style={{ fontSize: 22, fontWeight: 800, color: scoreColor(Math.round((totalForStudent(selectedWeek, selectedStudent) / (SKILLS.length * MAX_MARK)) * 100)) }}>
-                    {totalForStudent(selectedWeek, selectedStudent)}
+                  <span style={{ fontSize: 22, fontWeight: 800, color: scoreColor(Math.round((totalForStudent(selectedWeek, selectedStudent.name) / (SKILLS.length * MAX_MARK)) * 100)) }}>
+                    {totalForStudent(selectedWeek, selectedStudent.name)}
                   </span>
                   <span style={{ fontSize: 13, color: "#94a3b8" }}>/ {SKILLS.length * MAX_MARK}</span>
                 </div>
+                {/* ✅ Save to backend button */}
+                <button
+                  onClick={saveToBackend}
+                  disabled={saving}
+                  style={{
+                    padding: "10px 24px", borderRadius: 10, border: "none",
+                    background: "linear-gradient(135deg,#5b5ef4,#818cf8)",
+                    color: "#fff", fontWeight: 700, fontSize: 14,
+                    fontFamily: "inherit", cursor: saving ? "not-allowed" : "pointer",
+                    opacity: saving ? 0.7 : 1,
+                    boxShadow: "0 4px 14px rgba(91,94,244,0.3)",
+                  }}>
+                  {saving ? "Saving..." : "💾 Save Week"}
+                </button>
               </div>
             </div>
           )}
@@ -268,26 +357,27 @@ export default function InterpersonalSkills() {
             <label style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase" as const, display: "block", marginBottom: 8 }}>Filter by Student</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button onClick={() => setHistoryStudent("")} style={{
-                padding: "6px 14px", borderRadius: 20, border: `1.5px solid ${historyStudent === "" ? "#5b5ef4" : "#e5e9f5"}`,
+                padding: "6px 14px", borderRadius: 20,
+                border: `1.5px solid ${historyStudent === "" ? "#5b5ef4" : "#e5e9f5"}`,
                 background: historyStudent === "" ? "#eef0ff" : "#fff",
                 color: historyStudent === "" ? "#5b5ef4" : "#64748b",
                 fontWeight: 700, fontSize: 13, fontFamily: "inherit", cursor: "pointer",
               }}>All Students</button>
-              {students.map((name, i) => {
+              {students.map((s, i) => {
                 const [g1,g2] = avatarColors[i % avatarColors.length]
                 return (
-                  <button key={name} onClick={() => setHistoryStudent(name)} style={{
+                  <button key={s.id} onClick={() => setHistoryStudent(s.name)} style={{
                     display: "flex", alignItems: "center", gap: 6,
                     padding: "6px 12px", borderRadius: 20, cursor: "pointer",
-                    border: `1.5px solid ${historyStudent === name ? "#5b5ef4" : "#e5e9f5"}`,
-                    background: historyStudent === name ? "#eef0ff" : "#fafbff",
-                    color: historyStudent === name ? "#5b5ef4" : "#0f172a",
+                    border: `1.5px solid ${historyStudent === s.name ? "#5b5ef4" : "#e5e9f5"}`,
+                    background: historyStudent === s.name ? "#eef0ff" : "#fafbff",
+                    color: historyStudent === s.name ? "#5b5ef4" : "#0f172a",
                     fontWeight: 600, fontSize: 13, fontFamily: "inherit",
                   }}>
                     <div style={{ width: 20, height: 20, borderRadius: 5, background: `linear-gradient(135deg,${g1},${g2})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#fff" }}>
-                      {name.charAt(0).toUpperCase()}
+                      {s.name.charAt(0).toUpperCase()}
                     </div>
-                    {name}
+                    {s.name}
                   </button>
                 )
               })}
@@ -300,7 +390,6 @@ export default function InterpersonalSkills() {
               <p style={{ color: "#64748b", fontSize: 15 }}>No records yet. Enter marks in the Entry tab.</p>
             </div>
           ) : historyStudent ? (
-            /* Single student week-by-week */
             <div style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
               <div style={{ padding: "14px 20px", background: "#f8f9fe", borderBottom: "1px solid #e5e9f5", fontWeight: 700, fontSize: 15, color: "#0f172a" }}>
                 📊 {historyStudent} — All Weeks
@@ -316,7 +405,7 @@ export default function InterpersonalSkills() {
                   </tr>
                 </thead>
                 <tbody>
-                  {allWeeks.map(w => {
+                  {allWeeks.filter(w => marks[w]?.[historyStudent]).map(w => {
                     const total = totalForStudent(w, historyStudent)
                     const pct = Math.round((total / (SKILLS.length * MAX_MARK)) * 100)
                     return (
@@ -341,7 +430,6 @@ export default function InterpersonalSkills() {
               </table>
             </div>
           ) : (
-            /* All students summary */
             <div style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
               <div style={{ padding: "14px 20px", background: "#f8f9fe", borderBottom: "1px solid #e5e9f5", fontWeight: 700, fontSize: 15, color: "#0f172a" }}>
                 📊 All Students — Average Summary
@@ -357,27 +445,27 @@ export default function InterpersonalSkills() {
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((name, i) => {
+                  {students.map((s, i) => {
                     const [g1,g2] = avatarColors[i % avatarColors.length]
-                    const avg = avgForStudent(name)
+                    const avg = avgForStudent(s.name)
                     const pct = Math.round((avg / (SKILLS.length * MAX_MARK)) * 100)
                     return (
-                      <tr key={name} style={{ borderBottom: "1px solid #f1f5f9" }}
-                        onClick={() => setHistoryStudent(name)}
+                      <tr key={s.id}
+                        onClick={() => setHistoryStudent(s.name)}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#fafbff"}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
                         style={{ borderBottom: "1px solid #f1f5f9", cursor: "pointer" }}>
                         <td style={{ padding: "10px 20px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{ width: 28, height: 28, borderRadius: 7, background: `linear-gradient(135deg,${g1},${g2})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#fff" }}>{name.charAt(0).toUpperCase()}</div>
-                            <span style={{ fontWeight: 600, color: "#0f172a" }}>{name}</span>
+                            <div style={{ width: 28, height: 28, borderRadius: 7, background: `linear-gradient(135deg,${g1},${g2})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#fff" }}>{s.name.charAt(0).toUpperCase()}</div>
+                            <span style={{ fontWeight: 600, color: "#0f172a" }}>{s.name}</span>
                           </div>
                         </td>
-                        {SKILLS.map(s => {
-                          const weekVals = allWeeks.filter(w => marks[w]?.[name]).map(w => getMark(w, name, s.key))
+                        {SKILLS.map(sk => {
+                          const weekVals = allWeeks.filter(w => marks[w]?.[s.name]).map(w => getMark(w, s.name, sk.key))
                           const avgSkill = weekVals.length > 0 ? Math.round(weekVals.reduce((a,b) => a+b, 0) / weekVals.length) : 0
                           return (
-                            <td key={s.key} style={{ padding: "10px", textAlign: "center" }}>
+                            <td key={sk.key} style={{ padding: "10px", textAlign: "center" }}>
                               <span style={{ fontWeight: 700, color: avgSkill > 0 ? scoreColor(Math.round((avgSkill / MAX_MARK) * 100)) : "#cbd5e1" }}>{avgSkill || "—"}</span>
                             </td>
                           )
