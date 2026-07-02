@@ -95,19 +95,18 @@ def submit_score(payload: ScoreCreate, db: Session = Depends(get_db)):
     return score
 
 
-# ✅ ALL fixed routes BEFORE {student_id} routes
 @router.get("/leaderboard/today", response_model=List[dict])
 def today_leaderboard(db: Session = Depends(get_db)):
     today = date.today()
     results = (
-        db.query(Student.name, Score.total)
+        db.query(Student.name, Student.id.label("student_id"), Score.total)
         .join(Score, Score.student_id == Student.id)
         .filter(Score.date == today, Score.total > 0, Score.score_type == "daily")
         .order_by(Score.total.desc())
-        .limit(10)
+        .limit(20)
         .all()
     )
-    return [{"name": r.name, "total": r.total, "rank": i + 1}
+    return [{"name": r.name, "student_id": r.student_id, "total": r.total, "rank": i + 1}
             for i, r in enumerate(results)]
 
 
@@ -116,20 +115,24 @@ def weekly_leaderboard(db: Session = Depends(get_db)):
     today = date.today()
     week_start = today - timedelta(days=today.weekday())
     results = (
-        db.query(Student.name, func.sum(Score.total).label("total"))
+        db.query(
+            Student.name,
+            Student.id.label("student_id"),
+            func.sum(Score.total).label("total")
+        )
         .join(Score, Score.student_id == Student.id)
         .filter(
             Score.date >= week_start,
             Score.date <= today,
             Score.total > 0,
-            Score.score_type == "weekly"
+            Score.score_type == "daily"  # ✅ sum all daily scores this week
         )
-        .group_by(Student.name)
+        .group_by(Student.id, Student.name)
         .order_by(func.sum(Score.total).desc())
-        .limit(10)
+        .limit(20)
         .all()
     )
-    return [{"name": r.name, "total": r.total, "rank": i + 1}
+    return [{"name": r.name, "student_id": r.student_id, "total": r.total, "rank": i + 1}
             for i, r in enumerate(results)]
 
 
@@ -138,20 +141,24 @@ def monthly_leaderboard(db: Session = Depends(get_db)):
     today = date.today()
     month_start = today.replace(day=1)
     results = (
-        db.query(Student.name, func.sum(Score.total).label("total"))
+        db.query(
+            Student.name,
+            Student.id.label("student_id"),
+            func.sum(Score.total).label("total")
+        )
         .join(Score, Score.student_id == Student.id)
         .filter(
             Score.date >= month_start,
             Score.date <= today,
             Score.total > 0,
-            Score.score_type == "monthly"
+            Score.score_type == "daily"  # ✅ sum all daily scores this month
         )
-        .group_by(Student.name)
+        .group_by(Student.id, Student.name)
         .order_by(func.sum(Score.total).desc())
-        .limit(10)
+        .limit(20)
         .all()
     )
-    return [{"name": r.name, "total": r.total, "rank": i + 1}
+    return [{"name": r.name, "student_id": r.student_id, "total": r.total, "rank": i + 1}
             for i, r in enumerate(results)]
 
 
@@ -176,7 +183,6 @@ def debug(db: Session = Depends(get_db)):
     return [{"id": r[0], "score_type": r[1]} for r in results]
 
 
-# ✅ {student_id} routes LAST
 @router.get("/weekly/{student_id}")
 def weekly_scores(student_id: int, db: Session = Depends(get_db)):
     scores = (
@@ -217,11 +223,11 @@ def scores_by_range(student_id: int, range: str = "daily", db: Session = Depends
     )
     return scores
 
+
 @router.get("/average/{student_id}")
 def student_average(student_id: int, days: int = 7, db: Session = Depends(get_db)):
-    from datetime import date, timedelta
     end = date.today()
-    start = end - timedelta(days=days-1)
+    start = end - timedelta(days=days - 1)
 
     scores = db.query(Score).filter(
         Score.student_id == student_id,
@@ -232,46 +238,34 @@ def student_average(student_id: int, days: int = 7, db: Session = Depends(get_db
 
     if not scores:
         return {
-            "student_id": student_id,
-            "days": days,
-            "total_sessions": 0,
-            "average_total": 0,
-            "average_attendance": 0,
-            "average_speak_up": 0,
-            "average_activity": 0,
-            "average_technical": 0,
-            "average_behavior": 0,
-            "average_initiative": 0,
-            "scores": []
+            "student_id": student_id, "days": days, "total_sessions": 0,
+            "average_total": 0, "average_attendance": 0, "average_speak_up": 0,
+            "average_activity": 0, "average_technical": 0, "average_behavior": 0,
+            "average_initiative": 0, "scores": []
         }
 
     count = len(scores)
     return {
-        "student_id": student_id,
-        "days": days,
-        "total_sessions": count,
-        "average_total": round(sum(s.total for s in scores) / count, 1),
+        "student_id": student_id, "days": days, "total_sessions": count,
+        "average_total":      round(sum(s.total for s in scores) / count, 1),
         "average_attendance": round(sum(s.attendance for s in scores) / count, 1),
-        "average_speak_up": round(sum(s.speak_up for s in scores) / count, 1),
-        "average_activity": round(sum(s.activity for s in scores) / count, 1),
-        "average_technical": round(sum(s.technical for s in scores) / count, 1),
-        "average_behavior": round(sum(s.behavior for s in scores) / count, 1),
+        "average_speak_up":   round(sum(s.speak_up for s in scores) / count, 1),
+        "average_activity":   round(sum(s.activity for s in scores) / count, 1),
+        "average_technical":  round(sum(s.technical for s in scores) / count, 1),
+        "average_behavior":   round(sum(s.behavior for s in scores) / count, 1),
         "average_initiative": round(sum(s.initiative for s in scores) / count, 1),
         "scores": [{"date": str(s.date), "total": s.total} for s in scores]
     }
 
+
 @router.get("/averages/all")
 def all_students_average(days: int = 7, db: Session = Depends(get_db)):
-    from datetime import date, timedelta
     end = date.today()
-    start = end - timedelta(days=days-1)
+    start = end - timedelta(days=days - 1)
 
     results = (
         db.query(
-            Student.id,
-            Student.name,
-            Student.email,
-            Student.level,
+            Student.id, Student.name, Student.email, Student.level,
             func.count(Score.id).label("sessions"),
             func.avg(Score.total).label("avg_total"),
             func.avg(Score.attendance).label("avg_attendance"),
@@ -288,71 +282,63 @@ def all_students_average(days: int = 7, db: Session = Depends(get_db)):
     )
 
     return [{
-        "id": r.id,
-        "name": r.name,
-        "email": r.email,
-        "level": r.level,
-        "sessions": r.sessions or 0,
-        "avg_total": round(float(r.avg_total or 0), 1),
-        "avg_attendance": round(float(r.avg_attendance or 0), 1),
-        "avg_speak_up": round(float(r.avg_speak_up or 0), 1),
-        "avg_activity": round(float(r.avg_activity or 0), 1),
-        "avg_technical": round(float(r.avg_technical or 0), 1),
-        "avg_behavior": round(float(r.avg_behavior or 0), 1),
-        "avg_initiative": round(float(r.avg_initiative or 0), 1),
+        "id": r.id, "name": r.name, "email": r.email, "level": r.level,
+        "sessions":        r.sessions or 0,
+        "avg_total":       round(float(r.avg_total or 0), 1),
+        "avg_attendance":  round(float(r.avg_attendance or 0), 1),
+        "avg_speak_up":    round(float(r.avg_speak_up or 0), 1),
+        "avg_activity":    round(float(r.avg_activity or 0), 1),
+        "avg_technical":   round(float(r.avg_technical or 0), 1),
+        "avg_behavior":    round(float(r.avg_behavior or 0), 1),
+        "avg_initiative":  round(float(r.avg_initiative or 0), 1),
     } for r in results]
 
-    
+
 @router.get("/streak/{student_id}")
 def get_streak(student_id: int, db: Session = Depends(get_db)):
     today = date.today()
     streak = 0
     check_date = today
-    
+
     while True:
         score = db.query(Score).filter(
             Score.student_id == student_id,
             Score.date == check_date,
             Score.attendance > 0
         ).first()
-        
         if not score:
             break
-            
         streak += 1
         check_date = check_date - timedelta(days=1)
-    
+
     return {"student_id": student_id, "streak": streak}
+
 
 @router.get("/streaks/all")
 def get_all_streaks(db: Session = Depends(get_db)):
-    from app.models.student import Student
     students = db.query(Student).all()
     result = []
-    
+
     for student in students:
         today = date.today()
         streak = 0
         check_date = today
-        
+
         while True:
             score = db.query(Score).filter(
                 Score.student_id == student.id,
                 Score.date == check_date,
                 Score.attendance > 0
             ).first()
-            
             if not score:
                 break
-                
             streak += 1
             check_date = check_date - timedelta(days=1)
-        
+
         result.append({
             "student_id": student.id,
             "name": student.name,
             "streak": streak
         })
-    
-    return result
 
+    return result
