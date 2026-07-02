@@ -27,6 +27,7 @@ export const getLeaderboard = () => API.get("/scores/leaderboard/today")
 export const getWeeklyLeaderboard = () => API.get("/scores/leaderboard/weekly")
 export const getMonthlyLeaderboard = () => API.get("/scores/leaderboard/monthly")
 export const getStudentOfDay = () => API.get("/scores/student-of-the-day")
+
 export const getWeeklyScores = (studentId: number) =>
   API.get(`/scores/weekly/${studentId}`)
 export const getMyScores = (studentId: number) =>

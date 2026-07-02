@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { getMyScores, getLeaderboard, getStudentRewards, updateStudentPhoto } from "@/lib/api"
+import { getMyScores, getLeaderboard, getWeeklyLeaderboard, getMonthlyLeaderboard, getStudentRewards, updateStudentPhoto } from "@/lib/api"
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -29,6 +29,8 @@ export default function StudentPage() {
   const [photoUploading, setPhotoUploading] = useState(false)
   const [toast, setToast]                 = useState<{ msg: string; type: string } | null>(null)
   const [skills, setSkills]               = useState<any[]>([]) // array of week entries from backend
+  const [lbPeriod, setLbPeriod]           = useState<"daily" | "weekly" | "monthly">("daily")
+  const [periodLeaderboard, setPeriodLeaderboard] = useState<any[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
   const showToast = (msg: string, type = "success") => {
@@ -50,6 +52,7 @@ export default function StudentPage() {
     }
 
     fetchData(parsed.id)
+    fetchPeriodLeaderboard("daily")
 
     // ✅ Fetch interpersonal skills from backend
     fetch(`${API}/skills/student/${parsed.id}`)
@@ -59,6 +62,23 @@ export default function StudentPage() {
       })
       .catch(() => {})
   }, [])
+
+  const fetchPeriodLeaderboard = async (period: "daily" | "weekly" | "monthly") => {
+    try {
+      let res
+      if (period === "daily") res = await getLeaderboard()
+      else if (period === "weekly") res = await getWeeklyLeaderboard()
+      else res = await getMonthlyLeaderboard()
+      setPeriodLeaderboard(res.data)
+    } catch {
+      setPeriodLeaderboard([])
+    }
+  }
+
+  const handleLbPeriod = (p: "daily" | "weekly" | "monthly") => {
+    setLbPeriod(p)
+    fetchPeriodLeaderboard(p)
+  }
 
   const fetchData = async (id: number) => {
     try {
@@ -249,6 +269,50 @@ export default function StudentPage() {
               <p style={{ color:"#cbd5e1", fontSize:13, marginTop:4 }}>Check back after your session</p>
             </div>
           )}
+
+          {/* Leaderboard */}
+          <div className="card fade" style={{ padding:22, marginBottom:16, animationDelay:"0.05s" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap" as const, gap:10 }}>
+              <h2 style={{ fontFamily:"'Outfit',sans-serif", fontSize:16, fontWeight:700, color:"#0f172a", margin:0 }}>🏆 Leaderboard</h2>
+              <div style={{ display:"flex", gap:6, background:"#f1f5f9", padding:4, borderRadius:12 }}>
+                {([["daily","📅 Daily"],["weekly","📆 Weekly"],["monthly","🗓️ Monthly"]] as const).map(([key,label]) => (
+                  <button key={key} onClick={() => handleLbPeriod(key)} style={{
+                    padding:"7px 14px", borderRadius:9, border:"none", cursor:"pointer",
+                    fontWeight:700, fontSize:12, fontFamily:"'Plus Jakarta Sans',sans-serif",
+                    background: lbPeriod === key ? "#fff" : "transparent",
+                    color: lbPeriod === key ? "#4f46e5" : "#94a3b8",
+                    boxShadow: lbPeriod === key ? "0 2px 8px rgba(0,0,0,0.1)" : "none",
+                  }}>{label}</button>
+                ))}
+              </div>
+            </div>
+            {periodLeaderboard.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"32px 16px" }}>
+                <div style={{ fontSize:36, marginBottom:8 }}>📭</div>
+                <p style={{ color:"#94a3b8", fontSize:14 }}>No scores for {lbPeriod === "daily" ? "today" : lbPeriod === "weekly" ? "this week" : "this month"} yet</p>
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {periodLeaderboard.map((entry: any, i: number) => {
+                  const isMe = entry.name === student.name
+                  const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`
+                  return (
+                    <div key={i} style={{
+                      display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderRadius:12,
+                      background: isMe ? "#eef2ff" : i === 0 ? "linear-gradient(135deg,#fffbeb,#fef9c3)" : "#f8fafc",
+                      border: `1.5px solid ${isMe ? "#c7d2fe" : i === 0 ? "#fde68a" : "#f1f5f9"}`,
+                    }}>
+                      <span style={{ fontSize:20, width:32, textAlign:"center" }}>{medal}</span>
+                      <span style={{ flex:1, fontWeight: isMe ? 800 : 600, fontSize:14, color: isMe ? "#4338ca" : "#0f172a" }}>
+                        {entry.name}{isMe && " (You)"}
+                      </span>
+                      <span style={{ fontSize:18, fontWeight:800, color:"#4f46e5" }}>{entry.total}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
           {/* ✅ Interpersonal Skills from backend */}
           {skills.length > 0 && (
