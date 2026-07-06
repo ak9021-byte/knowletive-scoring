@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { getMyScores, getLeaderboard, getWeeklyLeaderboard, getMonthlyLeaderboard, getStudentRewards, updateStudentPhoto } from "@/lib/api"
+import ProjectUpdateForm from "@/components/ProjectUpdateForm"
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -269,6 +270,8 @@ export default function StudentPage() {
               <p style={{ color:"#cbd5e1", fontSize:13, marginTop:4 }}>Check back after your session</p>
             </div>
           )}
+
+          <ProjectUpdateForm />
 
           {/* Leaderboard */}
           <div className="card fade" style={{ padding:22, marginBottom:16, animationDelay:"0.05s" }}>

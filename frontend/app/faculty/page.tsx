@@ -7,6 +7,7 @@ import AttendanceTracker from "@/components/AttendanceTracker"
 import StudyMaterial from "@/components/StudyMaterial"
 import DailyActivity from "@/components/Dailyactivity"
 import InterpersonalSkills from "@/components/InterpersonalSkills"
+import ProjectUpdates from "@/components/ProjectUpdates"
 import ScoreEntryFullRange from "@/components/ScoreForm"
 import { updateStudent } from "@/lib/api"
 
@@ -350,6 +351,7 @@ export default function FacultyPage() {
     { id:"activity",   icon:"⚡", label:"Daily Activity" },
     { id:"study",      icon:"📚", label:"Study Material" },
     { id:"interpersonal", icon:"🎯", label:"Interpersonal Skills" },
+    { id:"projectupdates", icon:"📋", label:"Project Updates" },
   ]
 
   const dashAvg = dashLeaderboard.length > 0
@@ -995,6 +997,9 @@ export default function FacultyPage() {
               <StudyMaterial />
             </div>
           )}
+
+          {/* ══ PROJECT UPDATES ══ */}
+          {tab === "projectupdates" && <ProjectUpdates />}
 
           {/* ══ INTERPERSONAL SKILLS ══ */}
           {tab === "interpersonal" && (
