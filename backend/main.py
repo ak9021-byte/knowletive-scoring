@@ -9,6 +9,10 @@ from app.models.attendance import Attendance
 from app.models.interpersonal_skill import InterpersonalSkill
 from sqlalchemy import text
 
+with engine.connect() as conn:
+    conn.execute(text("DROP TABLE IF EXISTS project_updates"))
+    conn.commit()
+
 Base.metadata.create_all(bind=engine)
 
 try:
