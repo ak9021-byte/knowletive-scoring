@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from app.routers import students, scores, attendance, interpersonal_skills
+from app.routers import students, scores, attendance, interpersonal_skills, project_updates
 from app.models.student import Student
 from app.models.score import Score
 from app.models.reward import Reward
@@ -51,6 +51,7 @@ app.include_router(students.router)
 app.include_router(scores.router)
 app.include_router(attendance.router)
 app.include_router(interpersonal_skills.router)
+app.include_router(project_updates.router)
 
 @app.get("/")
 def root():
