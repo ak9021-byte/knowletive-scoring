@@ -48,6 +48,20 @@ export default function ProjectUpdateForm() {
     }
   }
 
+  // Existing project names this student has already used
+  const knownProjects = Array.from(new Set(updates.map((u: any) => u.project_name))).filter(Boolean)
+
+  // When project name matches a previous one, auto-fill its links
+  const handleProjectNameChange = (value: string) => {
+    const match = updates.find((u: any) => u.project_name === value)
+    setForm((f) => ({
+      ...f,
+      project_name: value,
+      github_link: match ? (match.github_link || f.github_link) : f.github_link,
+      deployment_link: match ? (match.deployment_link || f.deployment_link) : f.deployment_link,
+    }))
+  }
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -64,7 +78,7 @@ export default function ProjectUpdateForm() {
     try {
       await createProjectUpdate({ ...form, student_id: student.id })
       showToast("Update submitted! 🚀")
-      setForm({ ...emptyForm(), name: student.name })
+      setForm((f) => ({ ...emptyForm(), name: student.name, project_name: f.project_name, github_link: f.github_link, deployment_link: f.deployment_link }))
       fetchUpdates(student.id)
     } catch {
       showToast("Error submitting update", "error")
@@ -93,6 +107,21 @@ export default function ProjectUpdateForm() {
         }}>{toast.msg}</div>
       )}
 
+      {knownProjects.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <label className="pu-label">Quick Pick — Your Projects</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+            {knownProjects.map((p) => (
+              <button key={p} type="button" onClick={() => handleProjectNameChange(p)} style={{
+                padding: "6px 12px", borderRadius: 20, border: `1.5px solid ${form.project_name === p ? "#4f46e5" : "#e2e8f0"}`,
+                background: form.project_name === p ? "#eef2ff" : "#fff",
+                color: form.project_name === p ? "#4f46e5" : "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}>{p}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
         <div>
           <label className="pu-label">Name</label>
@@ -101,7 +130,7 @@ export default function ProjectUpdateForm() {
         <div>
           <label className="pu-label">Project Name</label>
           <input className="pu-input" placeholder="e.g. Knowletive Scoring App" value={form.project_name}
-            onChange={e => setForm({ ...form, project_name: e.target.value })} />
+            onChange={e => handleProjectNameChange(e.target.value)} />
         </div>
         <div>
           <label className="pu-label">Date</label>
@@ -111,17 +140,26 @@ export default function ProjectUpdateForm() {
           <label className="pu-label">Time</label>
           <input className="pu-input" type="time" value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
         </div>
-        <div>
-          <label className="pu-label">GitHub Link</label>
-          <input className="pu-input" placeholder="https://github.com/..." value={form.github_link}
-            onChange={e => setForm({ ...form, github_link: e.target.value })} />
-        </div>
-        <div>
-          <label className="pu-label">Deployment Link</label>
-          <input className="pu-input" placeholder="https://myapp.vercel.app" value={form.deployment_link}
-            onChange={e => setForm({ ...form, deployment_link: e.target.value })} />
-        </div>
       </div>
+
+      {/* GitHub / Deployment links — optional, only needed once per project, auto-filled after first entry */}
+      <details style={{ marginBottom: 16 }}>
+        <summary style={{ fontSize: 12, fontWeight: 700, color: "#4f46e5", cursor: "pointer", marginBottom: 8 }}>
+          🔗 GitHub / Deployment Links {(form.github_link || form.deployment_link) ? "(saved)" : "(optional — set once)"}
+        </summary>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 10 }}>
+          <div>
+            <label className="pu-label">GitHub Link</label>
+            <input className="pu-input" placeholder="https://github.com/..." value={form.github_link}
+              onChange={e => setForm({ ...form, github_link: e.target.value })} />
+          </div>
+          <div>
+            <label className="pu-label">Deployment Link</label>
+            <input className="pu-input" placeholder="https://myapp.vercel.app" value={form.deployment_link}
+              onChange={e => setForm({ ...form, deployment_link: e.target.value })} />
+          </div>
+        </div>
+      </details>
 
       <div style={{ marginBottom: 16 }}>
         <label className="pu-label">Image of Today's Work</label>
