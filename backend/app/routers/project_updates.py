@@ -1,4 +1,5 @@
 import io
+import re
 import base64
 from datetime import date as date_type, datetime
 from typing import Optional
@@ -69,33 +70,34 @@ def get_all_updates(db: Session = Depends(get_db)):
     return results
 
 
-@router.get("/export")
-def export_excel(db: Session = Depends(get_db)):
-    results = (
-        db.query(ProjectUpdate)
-        .order_by(ProjectUpdate.created_at.desc())
-        .all()
-    )
+def _safe_sheet_name(name: str, used: set) -> str:
+    """Excel sheet names: max 31 chars, no : \\ / ? * [ ] characters, must be unique."""
+    clean = re.sub(r'[:\\/?*\[\]]', "", name).strip() or "Student"
+    clean = clean[:31]
+    base = clean
+    i = 2
+    while clean in used:
+        suffix = f" ({i})"
+        clean = base[: 31 - len(suffix)] + suffix
+        i += 1
+    used.add(clean)
+    return clean
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Project Updates"
 
-    headers = ["Date", "Time", "Name", "Project Name", "GitHub Link", "Deployment Link", "Image"]
+def _write_sheet(ws, rows):
+    headers = ["Date", "Time", "Project Name", "GitHub Link", "Deployment Link", "Image"]
     ws.append(headers)
-
-    widths = [14, 10, 20, 22, 32, 32, 20]
+    widths = [14, 10, 24, 34, 34, 20]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[chr(64 + i)].width = w
 
     row_idx = 2
-    for u in results:
+    for u in rows:
         ws.cell(row=row_idx, column=1, value=u.date)
         ws.cell(row=row_idx, column=2, value=u.time)
-        ws.cell(row=row_idx, column=3, value=u.name)
-        ws.cell(row=row_idx, column=4, value=u.project_name)
-        ws.cell(row=row_idx, column=5, value=u.github_link or "")
-        ws.cell(row=row_idx, column=6, value=u.deployment_link or "")
+        ws.cell(row=row_idx, column=3, value=u.project_name)
+        ws.cell(row=row_idx, column=4, value=u.github_link or "")
+        ws.cell(row=row_idx, column=5, value=u.deployment_link or "")
 
         if u.image:
             try:
@@ -107,11 +109,37 @@ def export_excel(db: Session = Depends(get_db)):
                 pil_img.save(buf, format="PNG")
                 buf.seek(0)
                 xl_img = XLImage(buf)
-                ws.add_image(xl_img, f"G{row_idx}")
+                ws.add_image(xl_img, f"F{row_idx}")
                 ws.row_dimensions[row_idx].height = 105
             except Exception:
-                ws.cell(row=row_idx, column=7, value="Image error")
+                ws.cell(row=row_idx, column=6, value="Image error")
         row_idx += 1
+
+
+@router.get("/export")
+def export_excel(db: Session = Depends(get_db)):
+    results = (
+        db.query(ProjectUpdate)
+        .order_by(ProjectUpdate.name.asc(), ProjectUpdate.date.desc(), ProjectUpdate.created_at.desc())
+        .all()
+    )
+
+    grouped: dict[str, list] = {}
+    for u in results:
+        grouped.setdefault(u.name, []).append(u)
+
+    wb = Workbook()
+    wb.remove(wb.active)  # remove default blank sheet
+
+    used_names: set = set()
+    if not grouped:
+        ws = wb.create_sheet("No Data")
+        ws.append(["No project updates submitted yet"])
+    else:
+        for student_name in sorted(grouped.keys()):
+            sheet_name = _safe_sheet_name(student_name, used_names)
+            ws = wb.create_sheet(sheet_name)
+            _write_sheet(ws, grouped[student_name])
 
     stream = io.BytesIO()
     wb.save(stream)
