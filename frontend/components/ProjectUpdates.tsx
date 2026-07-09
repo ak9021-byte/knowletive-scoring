@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { getAllProjectUpdates } from "@/lib/api"
+import { getAllProjectUpdates, approveProjectUpdate } from "@/lib/api"
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -13,6 +13,7 @@ export default function ProjectUpdates() {
   const [updates, setUpdates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [approving, setApproving] = useState<number | null>(null)
 
   useEffect(() => { fetchAll() }, [])
 
@@ -27,7 +28,15 @@ export default function ProjectUpdates() {
     setLoading(false)
   }
 
-  // Group updates by student name
+  const handleApprove = async (id: number) => {
+    setApproving(id)
+    try {
+      await approveProjectUpdate(id)
+      await fetchAll()
+    } catch {}
+    setApproving(null)
+  }
+
   const grouped: Record<string, any[]> = {}
   updates.forEach((u: any) => {
     if (!grouped[u.name]) grouped[u.name] = []
@@ -67,10 +76,10 @@ export default function ProjectUpdates() {
             const [g1, g2] = avatarColors[i % avatarColors.length]
             const latest = studentUpdates[0]
             const projectNames = Array.from(new Set(studentUpdates.map((u: any) => u.project_name)))
+            const pendingCount = studentUpdates.filter((u: any) => !u.approved).length
 
             return (
               <div key={name} style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                {/* Student header row */}
                 <div
                   onClick={() => setExpanded(isOpen ? null : name)}
                   style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", cursor: "pointer", background: isOpen ? "#f8f9fe" : "#fff" }}
@@ -87,11 +96,15 @@ export default function ProjectUpdates() {
                       {projectNames.join(", ")} · {studentUpdates.length} update{studentUpdates.length !== 1 ? "s" : ""}
                     </div>
                   </div>
+                  {pendingCount > 0 && (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", padding: "3px 10px", borderRadius: 20, flexShrink: 0 }}>
+                      {pendingCount} pending
+                    </span>
+                  )}
                   <div style={{ fontSize: 12, color: "#94a3b8", flexShrink: 0 }}>Last: {latest.date}</div>
                   <div style={{ fontSize: 18, color: "#94a3b8", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▾</div>
                 </div>
 
-                {/* Expanded daily updates */}
                 {isOpen && (
                   <div style={{ borderTop: "1px solid #e5e9f5", padding: "12px 20px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
                     {studentUpdates.map((u: any) => (
@@ -103,12 +116,25 @@ export default function ProjectUpdates() {
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{u.project_name}</div>
-                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{u.date} at {u.time}</div>
+                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{u.date} at {u.time}{u.technology ? ` · ${u.technology}` : ""}</div>
                           <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" as const }}>
                             {u.github_link && <a href={u.github_link} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#4f46e5", fontWeight: 600 }}>🔗 GitHub</a>}
                             {u.deployment_link && <a href={u.deployment_link} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>🌐 Live Demo</a>}
                           </div>
                         </div>
+                        {u.approved ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#059669", background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "5px 12px", borderRadius: 20, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+                            ✅ {u.faculty_remark}
+                          </span>
+                        ) : (
+                          <button onClick={() => handleApprove(u.id)} disabled={approving === u.id} style={{
+                            padding: "7px 14px", borderRadius: 20, border: "1.5px solid #4f46e5", background: "#eef2ff",
+                            color: "#4f46e5", fontSize: 12, fontWeight: 700, cursor: approving === u.id ? "not-allowed" : "pointer",
+                            whiteSpace: "nowrap" as const, flexShrink: 0,
+                          }}>
+                            {approving === u.id ? "..." : "✅ Approve"}
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

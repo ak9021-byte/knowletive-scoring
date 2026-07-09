@@ -31,6 +31,8 @@ export const getStudentOfDay = () => API.get("/scores/student-of-the-day")
 export const createProjectUpdate = (data: any) => API.post("/project-updates/", data)
 export const getMyProjectUpdates = (studentId: number) => API.get(`/project-updates/student/${studentId}`)
 export const getAllProjectUpdates = () => API.get("/project-updates/all")
+export const approveProjectUpdate = (id: number, remark?: string) =>
+  API.patch(`/project-updates/${id}/approve`, { remark })
 
 export const getWeeklyScores = (studentId: number) =>
   API.get(`/scores/weekly/${studentId}`)

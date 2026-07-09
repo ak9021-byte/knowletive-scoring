@@ -17,6 +17,7 @@ export default function ProjectUpdateForm() {
   const emptyForm = () => ({
     name: "",
     project_name: "",
+    technology: "",
     date: nowDate(),
     time: nowTime(),
     image: "",
@@ -48,10 +49,8 @@ export default function ProjectUpdateForm() {
     }
   }
 
-  // Existing project names this student has already used
   const knownProjects = Array.from(new Set(updates.map((u: any) => u.project_name))).filter(Boolean)
 
-  // When project name matches a previous one, auto-fill its links
   const handleProjectNameChange = (value: string) => {
     const match = updates.find((u: any) => u.project_name === value)
     setForm((f) => ({
@@ -78,7 +77,7 @@ export default function ProjectUpdateForm() {
     try {
       await createProjectUpdate({ ...form, student_id: student.id })
       showToast("Update submitted! 🚀")
-      setForm((f) => ({ ...emptyForm(), name: student.name, project_name: f.project_name, github_link: f.github_link, deployment_link: f.deployment_link }))
+      setForm((f) => ({ ...emptyForm(), name: student.name, project_name: f.project_name, technology: f.technology, github_link: f.github_link, deployment_link: f.deployment_link }))
       fetchUpdates(student.id)
     } catch {
       showToast("Error submitting update", "error")
@@ -132,6 +131,11 @@ export default function ProjectUpdateForm() {
           <input className="pu-input" placeholder="e.g. Knowletive Scoring App" value={form.project_name}
             onChange={e => handleProjectNameChange(e.target.value)} />
         </div>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label className="pu-label">Technology / Topic Used Today</label>
+          <input className="pu-input" placeholder="e.g. React, FastAPI, PostgreSQL" value={form.technology}
+            onChange={e => setForm({ ...form, technology: e.target.value })} />
+        </div>
         <div>
           <label className="pu-label">Date</label>
           <input className="pu-input" type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
@@ -142,7 +146,6 @@ export default function ProjectUpdateForm() {
         </div>
       </div>
 
-      {/* GitHub / Deployment links — optional, only needed once per project, auto-filled after first entry */}
       <details style={{ marginBottom: 16 }}>
         <summary style={{ fontSize: 12, fontWeight: 700, color: "#4f46e5", cursor: "pointer", marginBottom: 8 }}>
           🔗 GitHub / Deployment Links {(form.github_link || form.deployment_link) ? "(saved)" : "(optional — set once)"}
@@ -198,6 +201,15 @@ export default function ProjectUpdateForm() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{u.project_name}</div>
                   <div style={{ fontSize: 11, color: "#94a3b8" }}>{u.date} · {u.time}</div>
                 </div>
+                {u.approved ? (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#059669", background: "#ecfdf5", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" as const }}>
+                    ✅ {u.faculty_remark || "Approved"}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", background: "#f1f5f9", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" as const }}>
+                    ⏳ Pending review
+                  </span>
+                )}
               </div>
             ))}
           </div>

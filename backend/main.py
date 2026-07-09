@@ -9,9 +9,7 @@ from app.models.attendance import Attendance
 from app.models.interpersonal_skill import InterpersonalSkill
 from sqlalchemy import text
 
-with engine.connect() as conn:
-    conn.execute(text("DROP TABLE IF EXISTS project_updates"))
-    conn.commit()
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -19,6 +17,9 @@ try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE daily_scores ADD COLUMN IF NOT EXISTS suggestion TEXT"))
         conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS photo TEXT"))
+        conn.execute(text("ALTER TABLE project_updates ADD COLUMN IF NOT EXISTS technology VARCHAR"))
+        conn.execute(text("ALTER TABLE project_updates ADD COLUMN IF NOT EXISTS approved BOOLEAN DEFAULT FALSE"))
+        conn.execute(text("ALTER TABLE project_updates ADD COLUMN IF NOT EXISTS faculty_remark VARCHAR"))
         conn.execute(text("ALTER TABLE daily_scores ADD COLUMN IF NOT EXISTS score_type VARCHAR DEFAULT 'daily'"))
         conn.execute(text("UPDATE daily_scores SET score_type = 'daily' WHERE score_type IS NULL"))
         conn.execute(text("""

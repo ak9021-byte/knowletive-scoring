@@ -4,7 +4,7 @@ import base64
 from datetime import date as date_type, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -23,11 +23,16 @@ class ProjectUpdateCreate(BaseModel):
     student_id: int
     name: str
     project_name: str
+    technology: Optional[str] = None
     date: Optional[str] = None
     time: Optional[str] = None
     image: Optional[str] = None
     github_link: Optional[str] = None
     deployment_link: Optional[str] = None
+
+
+class ApprovePayload(BaseModel):
+    remark: Optional[str] = None
 
 
 @router.post("/")
@@ -37,6 +42,7 @@ def create_update(payload: ProjectUpdateCreate, db: Session = Depends(get_db)):
         student_id=payload.student_id,
         name=payload.name,
         project_name=payload.project_name,
+        technology=payload.technology,
         date=payload.date or date_type.today().isoformat(),
         time=payload.time or now.strftime("%H:%M"),
         image=payload.image,
@@ -44,6 +50,18 @@ def create_update(payload: ProjectUpdateCreate, db: Session = Depends(get_db)):
         deployment_link=payload.deployment_link,
     )
     db.add(update)
+    db.commit()
+    db.refresh(update)
+    return update
+
+
+@router.patch("/{update_id}/approve")
+def approve_update(update_id: int, payload: ApprovePayload, db: Session = Depends(get_db)):
+    update = db.query(ProjectUpdate).filter(ProjectUpdate.id == update_id).first()
+    if not update:
+        raise HTTPException(status_code=404, detail="Update not found")
+    update.approved = True
+    update.faculty_remark = payload.remark or "Today's work done ✅"
     db.commit()
     db.refresh(update)
     return update
@@ -71,7 +89,6 @@ def get_all_updates(db: Session = Depends(get_db)):
 
 
 def _safe_sheet_name(name: str, used: set) -> str:
-    """Excel sheet names: max 31 chars, no : \\ / ? * [ ] characters, must be unique."""
     clean = re.sub(r'[:\\/?*\[\]]', "", name).strip() or "Student"
     clean = clean[:31]
     base = clean
@@ -85,9 +102,9 @@ def _safe_sheet_name(name: str, used: set) -> str:
 
 
 def _write_sheet(ws, rows):
-    headers = ["Date", "Time", "Project Name", "GitHub Link", "Deployment Link", "Image"]
+    headers = ["Date", "Time", "Project Name", "Technology", "GitHub Link", "Deployment Link", "Faculty Remark", "Image"]
     ws.append(headers)
-    widths = [14, 10, 24, 34, 34, 20]
+    widths = [14, 10, 22, 20, 32, 32, 26, 20]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[chr(64 + i)].width = w
 
@@ -96,8 +113,10 @@ def _write_sheet(ws, rows):
         ws.cell(row=row_idx, column=1, value=u.date)
         ws.cell(row=row_idx, column=2, value=u.time)
         ws.cell(row=row_idx, column=3, value=u.project_name)
-        ws.cell(row=row_idx, column=4, value=u.github_link or "")
-        ws.cell(row=row_idx, column=5, value=u.deployment_link or "")
+        ws.cell(row=row_idx, column=4, value=u.technology or "")
+        ws.cell(row=row_idx, column=5, value=u.github_link or "")
+        ws.cell(row=row_idx, column=6, value=u.deployment_link or "")
+        ws.cell(row=row_idx, column=7, value=(u.faculty_remark or "Pending review") if u.approved else "Pending review")
 
         if u.image:
             try:
@@ -109,10 +128,10 @@ def _write_sheet(ws, rows):
                 pil_img.save(buf, format="PNG")
                 buf.seek(0)
                 xl_img = XLImage(buf)
-                ws.add_image(xl_img, f"F{row_idx}")
+                ws.add_image(xl_img, f"H{row_idx}")
                 ws.row_dimensions[row_idx].height = 105
             except Exception:
-                ws.cell(row=row_idx, column=6, value="Image error")
+                ws.cell(row=row_idx, column=8, value="Image error")
         row_idx += 1
 
 
@@ -129,7 +148,7 @@ def export_excel(db: Session = Depends(get_db)):
         grouped.setdefault(u.name, []).append(u)
 
     wb = Workbook()
-    wb.remove(wb.active)  # remove default blank sheet
+    wb.remove(wb.active)
 
     used_names: set = set()
     if not grouped:
