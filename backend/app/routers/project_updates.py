@@ -33,6 +33,7 @@ class ProjectUpdateCreate(BaseModel):
 
 class ApprovePayload(BaseModel):
     remark: Optional[str] = None
+    reviewer_name: Optional[str] = None
 
 
 @router.post("/")
@@ -62,6 +63,7 @@ def approve_update(update_id: int, payload: ApprovePayload, db: Session = Depend
         raise HTTPException(status_code=404, detail="Update not found")
     update.approved = True
     update.faculty_remark = payload.remark or "Today's work done ✅"
+    update.reviewer_name = payload.reviewer_name
     db.commit()
     db.refresh(update)
     return update
@@ -102,9 +104,9 @@ def _safe_sheet_name(name: str, used: set) -> str:
 
 
 def _write_sheet(ws, rows):
-    headers = ["Date", "Time", "Project Name", "Technology", "GitHub Link", "Deployment Link", "Faculty Remark", "Image"]
+    headers = ["Date", "Time", "Project Name", "Technology", "GitHub Link", "Deployment Link", "Faculty Remark", "Reviewed By", "Image"]
     ws.append(headers)
-    widths = [14, 10, 22, 20, 32, 32, 26, 20]
+    widths = [14, 10, 22, 20, 32, 32, 26, 16, 20]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[chr(64 + i)].width = w
 
@@ -116,7 +118,8 @@ def _write_sheet(ws, rows):
         ws.cell(row=row_idx, column=4, value=u.technology or "")
         ws.cell(row=row_idx, column=5, value=u.github_link or "")
         ws.cell(row=row_idx, column=6, value=u.deployment_link or "")
-        ws.cell(row=row_idx, column=7, value=(u.faculty_remark or "Pending review") if u.approved else "Pending review")
+        ws.cell(row=row_idx, column=7, value=(u.faculty_remark if u.approved else "Pending review"))
+        ws.cell(row=row_idx, column=8, value=(u.reviewer_name or "") if u.approved else "")
 
         if u.image:
             try:
@@ -128,10 +131,10 @@ def _write_sheet(ws, rows):
                 pil_img.save(buf, format="PNG")
                 buf.seek(0)
                 xl_img = XLImage(buf)
-                ws.add_image(xl_img, f"H{row_idx}")
+                ws.add_image(xl_img, f"I{row_idx}")
                 ws.row_dimensions[row_idx].height = 105
             except Exception:
-                ws.cell(row=row_idx, column=8, value="Image error")
+                ws.cell(row=row_idx, column=9, value="Image error")
         row_idx += 1
 
 

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { getAllProjectUpdates, approveProjectUpdate } from "@/lib/api"
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const FACULTY_LIST = ["Manoj Sir", "Aman Sir", "Lokesh Sir"]
 
 const avatarColors = [
   ["#667eea","#764ba2"],["#f093fb","#f5576c"],["#4facfe","#00f2fe"],
@@ -15,15 +16,24 @@ export default function ProjectUpdates() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState<number | null>(null)
   const [reviewText, setReviewText] = useState<Record<number, string>>({})
+  const [reviewer, setReviewer] = useState<string>(FACULTY_LIST[0])
 
-  useEffect(() => { fetchAll() }, [])
+  useEffect(() => {
+    const saved = localStorage.getItem("reviewing_as")
+    if (saved && FACULTY_LIST.includes(saved)) setReviewer(saved)
+    fetchAll()
+  }, [])
+
+  const handleReviewerChange = (name: string) => {
+    setReviewer(name)
+    localStorage.setItem("reviewing_as", name)
+  }
 
   const fetchAll = async () => {
     setLoading(true)
     try {
       const res = await getAllProjectUpdates()
       setUpdates(res.data)
-      // seed review text boxes with any existing remarks
       const seed: Record<number, string> = {}
       res.data.forEach((u: any) => { seed[u.id] = u.faculty_remark || "" })
       setReviewText((prev) => ({ ...seed, ...prev }))
@@ -37,7 +47,7 @@ export default function ProjectUpdates() {
     setSubmitting(id)
     try {
       const text = (reviewText[id] || "").trim() || "Today's work done ✅"
-      await approveProjectUpdate(id, text)
+      await approveProjectUpdate(id, text, reviewer)
       await fetchAll()
     } catch {}
     setSubmitting(null)
@@ -52,7 +62,7 @@ export default function ProjectUpdates() {
 
   return (
     <div style={{ maxWidth: 1000 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap" as const, gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap" as const, gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", margin: 0 }}>📋 Project Updates</h1>
           <p style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Daily project activity, grouped by student</p>
@@ -63,6 +73,23 @@ export default function ProjectUpdates() {
         }}>
           📥 Download as Excel
         </a>
+      </div>
+
+      {/* Reviewing-as selector */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10, marginBottom: 20, padding: "10px 16px",
+        background: "#eef2ff", border: "1px solid #c7d2fe", borderRadius: 10, width: "fit-content",
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#4338ca" }}>👨‍🏫 Reviewing as:</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          {FACULTY_LIST.map((f) => (
+            <button key={f} onClick={() => handleReviewerChange(f)} style={{
+              padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+              fontSize: 12, fontWeight: 700, background: reviewer === f ? "#4f46e5" : "#fff",
+              color: reviewer === f ? "#fff" : "#4338ca",
+            }}>{f}</button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -131,12 +158,11 @@ export default function ProjectUpdates() {
                           </div>
                           {u.approved && (
                             <span style={{ fontSize: 11, fontWeight: 700, color: "#059669", background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "5px 12px", borderRadius: 20, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-                              ✅ Reviewed
+                              ✅ {u.reviewer_name || "Reviewed"}
                             </span>
                           )}
                         </div>
 
-                        {/* Faculty review input */}
                         <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-start" }}>
                           <textarea
                             value={reviewText[u.id] ?? ""}

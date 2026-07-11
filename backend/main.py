@@ -20,6 +20,7 @@ try:
         conn.execute(text("ALTER TABLE project_updates ADD COLUMN IF NOT EXISTS technology VARCHAR"))
         conn.execute(text("ALTER TABLE project_updates ADD COLUMN IF NOT EXISTS approved BOOLEAN DEFAULT FALSE"))
         conn.execute(text("ALTER TABLE project_updates ADD COLUMN IF NOT EXISTS faculty_remark VARCHAR"))
+        conn.execute(text("ALTER TABLE project_updates ADD COLUMN IF NOT EXISTS reviewer_name VARCHAR"))
         conn.execute(text("ALTER TABLE daily_scores ADD COLUMN IF NOT EXISTS score_type VARCHAR DEFAULT 'daily'"))
         conn.execute(text("UPDATE daily_scores SET score_type = 'daily' WHERE score_type IS NULL"))
         conn.execute(text("""

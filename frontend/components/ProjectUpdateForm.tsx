@@ -200,13 +200,14 @@ export default function ProjectUpdateForm() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{u.project_name}</div>
                   <div style={{ fontSize: 11, color: "#94a3b8" }}>{u.date} · {u.time}</div>
+                  {u.approved && (
+                    <div style={{ fontSize: 11, color: "#059669", marginTop: 4, fontWeight: 600 }}>
+                      "{u.faculty_remark}" — {u.reviewer_name || "Faculty"}
+                    </div>
+                  )}
                 </div>
-                {u.approved ? (
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#059669", background: "#ecfdf5", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" as const }}>
-                    ✅ {u.faculty_remark || "Approved"}
-                  </span>
-                ) : (
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", background: "#f1f5f9", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" as const }}>
+                {!u.approved && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", background: "#f1f5f9", padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
                     ⏳ Pending review
                   </span>
                 )}
