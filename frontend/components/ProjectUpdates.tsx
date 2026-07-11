@@ -13,7 +13,8 @@ export default function ProjectUpdates() {
   const [updates, setUpdates] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [approving, setApproving] = useState<number | null>(null)
+  const [submitting, setSubmitting] = useState<number | null>(null)
+  const [reviewText, setReviewText] = useState<Record<number, string>>({})
 
   useEffect(() => { fetchAll() }, [])
 
@@ -22,19 +23,24 @@ export default function ProjectUpdates() {
     try {
       const res = await getAllProjectUpdates()
       setUpdates(res.data)
+      // seed review text boxes with any existing remarks
+      const seed: Record<number, string> = {}
+      res.data.forEach((u: any) => { seed[u.id] = u.faculty_remark || "" })
+      setReviewText((prev) => ({ ...seed, ...prev }))
     } catch {
       setUpdates([])
     }
     setLoading(false)
   }
 
-  const handleApprove = async (id: number) => {
-    setApproving(id)
+  const handleSubmitReview = async (id: number) => {
+    setSubmitting(id)
     try {
-      await approveProjectUpdate(id)
+      const text = (reviewText[id] || "").trim() || "Today's work done ✅"
+      await approveProjectUpdate(id, text)
       await fetchAll()
     } catch {}
-    setApproving(null)
+    setSubmitting(null)
   }
 
   const grouped: Record<string, any[]> = {}
@@ -106,35 +112,54 @@ export default function ProjectUpdates() {
                 </div>
 
                 {isOpen && (
-                  <div style={{ borderTop: "1px solid #e5e9f5", padding: "12px 20px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ borderTop: "1px solid #e5e9f5", padding: "12px 20px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
                     {studentUpdates.map((u: any) => (
-                      <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 14px", borderRadius: 10, background: "#f8fafc", border: "1px solid #f1f5f9" }}>
-                        {u.image ? (
-                          <img src={u.image} style={{ width: 48, height: 48, borderRadius: 9, objectFit: "cover", flexShrink: 0 }} />
-                        ) : (
-                          <div style={{ width: 48, height: 48, borderRadius: 9, background: "#f1f5f9", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📷</div>
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{u.project_name}</div>
-                          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{u.date} at {u.time}{u.technology ? ` · ${u.technology}` : ""}</div>
-                          <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" as const }}>
-                            {u.github_link && <a href={u.github_link} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#4f46e5", fontWeight: 600 }}>🔗 GitHub</a>}
-                            {u.deployment_link && <a href={u.deployment_link} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>🌐 Live Demo</a>}
+                      <div key={u.id} style={{ padding: "14px", borderRadius: 10, background: "#f8fafc", border: "1px solid #f1f5f9" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          {u.image ? (
+                            <img src={u.image} style={{ width: 48, height: 48, borderRadius: 9, objectFit: "cover", flexShrink: 0 }} />
+                          ) : (
+                            <div style={{ width: 48, height: 48, borderRadius: 9, background: "#f1f5f9", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📷</div>
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{u.project_name}</div>
+                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{u.date} at {u.time}{u.technology ? ` · ${u.technology}` : ""}</div>
+                            <div style={{ display: "flex", gap: 10, marginTop: 4, flexWrap: "wrap" as const }}>
+                              {u.github_link && <a href={u.github_link} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#4f46e5", fontWeight: 600 }}>🔗 GitHub</a>}
+                              {u.deployment_link && <a href={u.deployment_link} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>🌐 Live Demo</a>}
+                            </div>
                           </div>
+                          {u.approved && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#059669", background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "5px 12px", borderRadius: 20, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+                              ✅ Reviewed
+                            </span>
+                          )}
                         </div>
-                        {u.approved ? (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: "#059669", background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "5px 12px", borderRadius: 20, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-                            ✅ {u.faculty_remark}
-                          </span>
-                        ) : (
-                          <button onClick={() => handleApprove(u.id)} disabled={approving === u.id} style={{
-                            padding: "7px 14px", borderRadius: 20, border: "1.5px solid #4f46e5", background: "#eef2ff",
-                            color: "#4f46e5", fontSize: 12, fontWeight: 700, cursor: approving === u.id ? "not-allowed" : "pointer",
-                            whiteSpace: "nowrap" as const, flexShrink: 0,
-                          }}>
-                            {approving === u.id ? "..." : "✅ Approve"}
+
+                        {/* Faculty review input */}
+                        <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                          <textarea
+                            value={reviewText[u.id] ?? ""}
+                            onChange={(e) => setReviewText((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                            placeholder="Write a review for this update... (e.g. Today's work done ✅)"
+                            rows={1}
+                            style={{
+                              flex: 1, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0",
+                              fontSize: 12, fontFamily: "'Plus Jakarta Sans',sans-serif", resize: "vertical" as const, outline: "none", color: "#0f172a",
+                            }}
+                          />
+                          <button
+                            onClick={() => handleSubmitReview(u.id)}
+                            disabled={submitting === u.id}
+                            style={{
+                              padding: "8px 16px", borderRadius: 8, border: "none", cursor: submitting === u.id ? "not-allowed" : "pointer",
+                              background: "linear-gradient(135deg,#4f46e5,#7c3aed)", color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" as const,
+                              opacity: submitting === u.id ? 0.6 : 1,
+                            }}
+                          >
+                            {submitting === u.id ? "..." : u.approved ? "Update Review" : "Submit Review"}
                           </button>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>
