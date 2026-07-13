@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
+import { createStudyEntry, getStudyEntries, updateStudyEntry, deleteStudyEntry } from "../lib/api"
 
 type YesNo = "Yes" | "No" | ""
 
@@ -19,7 +20,6 @@ interface StudyEntry {
   notes: Note[]
 }
 
-const STUDY_KEY = "study_material_v1"
 const today = () => new Date().toISOString().split("T")[0]
 const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
 const uid = () => Math.random().toString(36).slice(2, 9)
@@ -32,6 +32,28 @@ const emptyEntry = (): Omit<StudyEntry, "id"> => ({
   programsGiven: 0,
   programsSubmitted: 0,
   notes: [],
+})
+
+// --- API <-> frontend field mapping ---
+const mapFromApi = (r: any): StudyEntry => ({
+  id: String(r.id),
+  date: r.date,
+  topicName: r.topic_name,
+  videoRecorded: (r.video_recorded || "") as YesNo,
+  videoAccess: (r.video_access || "") as YesNo,
+  programsGiven: r.programs_given ?? 0,
+  programsSubmitted: r.programs_submitted ?? 0,
+  notes: (r.notes || []).map((t: string) => ({ id: uid(), text: t })),
+})
+
+const mapToApi = (f: Omit<StudyEntry, "id">) => ({
+  date: f.date,
+  topic_name: f.topicName,
+  video_recorded: f.videoRecorded,
+  video_access: f.videoAccess,
+  programs_given: f.programsGiven,
+  programs_submitted: f.programsSubmitted,
+  notes: f.notes.map(n => n.text),
 })
 
 const YesNoToggle = ({ value, onChange }: { value: YesNo; onChange: (v: YesNo) => void }) => (
@@ -49,6 +71,7 @@ const YesNoToggle = ({ value, onChange }: { value: YesNo; onChange: (v: YesNo) =
 
 export default function StudyMaterial() {
   const [entries, setEntries] = useState<StudyEntry[]>([])
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState(emptyEntry())
   const [newNote, setNewNote] = useState("")
   const [view, setView] = useState<"entry" | "history">("entry")
@@ -56,16 +79,19 @@ export default function StudyMaterial() {
   const [editNote, setEditNote] = useState("")
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadEntries = async () => {
     try {
-      const d = localStorage.getItem(STUDY_KEY)
-      if (d) setEntries(JSON.parse(d))
-    } catch {}
-  }, [])
-
-  const persist = (e: StudyEntry[]) => {
-    localStorage.setItem(STUDY_KEY, JSON.stringify(e))
+      const res = await getStudyEntries()
+      setEntries(res.data.map(mapFromApi))
+    } catch (err) {
+      console.error(err)
+      alert("❌ Failed to load study entries")
+    } finally {
+      setLoading(false)
+    }
   }
+
+  useEffect(() => { loadEntries() }, [])
 
   const addNote = () => {
     const text = newNote.trim()
@@ -78,22 +104,29 @@ export default function StudyMaterial() {
     setForm(f => ({ ...f, notes: f.notes.filter(n => n.id !== id) }))
   }
 
-  const saveEntry = () => {
+  const saveEntry = async () => {
     if (!form.topicName.trim()) return alert("Please enter a topic name!")
-    const entry: StudyEntry = { ...form, id: uid() }
-    const updated = [entry, ...entries]
-    setEntries(updated)
-    persist(updated)
-    setForm(emptyEntry())
-    setNewNote("")
-    alert("✅ Study entry saved!")
+    try {
+      await createStudyEntry(mapToApi(form))
+      await loadEntries()
+      setForm(emptyEntry())
+      setNewNote("")
+      alert("✅ Study entry saved!")
+    } catch (err) {
+      console.error(err)
+      alert("❌ Failed to save entry")
+    }
   }
 
-  const deleteEntry = (id: string) => {
+  const deleteEntry = async (id: string) => {
     if (!confirm("Delete this study entry?")) return
-    const updated = entries.filter(e => e.id !== id)
-    setEntries(updated)
-    persist(updated)
+    try {
+      await deleteStudyEntry(Number(id))
+      await loadEntries()
+    } catch (err) {
+      console.error(err)
+      alert("❌ Failed to delete entry")
+    }
   }
 
   const startEdit = (entry: StudyEntry) => {
@@ -101,13 +134,17 @@ export default function StudyMaterial() {
     setView("history")
   }
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingEntry) return
     if (!editingEntry.topicName.trim()) return alert("Please enter a topic name!")
-    const updated = entries.map(e => e.id === editingEntry.id ? editingEntry : e)
-    setEntries(updated)
-    persist(updated)
-    setEditingEntry(null)
+    try {
+      await updateStudyEntry(Number(editingEntry.id), mapToApi(editingEntry))
+      await loadEntries()
+      setEditingEntry(null)
+    } catch (err) {
+      console.error(err)
+      alert("❌ Failed to update entry")
+    }
   }
 
   const addNoteToEdit = () => {
@@ -137,6 +174,10 @@ export default function StudyMaterial() {
   const labelStyle: React.CSSProperties = {
     fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px",
     textTransform: "uppercase", display: "block", marginBottom: 7,
+  }
+
+  if (loading) {
+    return <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>Loading study material…</div>
   }
 
   return (
@@ -334,7 +375,6 @@ export default function StudyMaterial() {
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {entries.map(e => (
                 <div key={e.id} style={{ background: "#fff", border: "1px solid #e5e9f5", borderRadius: 16, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                  {/* Header */}
                   <div style={{ padding: "14px 20px", background: "#f8f9fe", borderBottom: "1px solid #e5e9f5", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
                       <span style={{ fontWeight: 800, fontSize: 15, color: "#0f172a" }}>📚 {e.topicName}</span>
@@ -346,7 +386,6 @@ export default function StudyMaterial() {
                     </div>
                   </div>
 
-                  {/* Body */}
                   <div style={{ padding: "16px 20px" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: e.notes.length > 0 ? 14 : 0 }}>
                       {[
@@ -362,7 +401,6 @@ export default function StudyMaterial() {
                       ))}
                     </div>
 
-                    {/* Notes */}
                     {e.notes.length > 0 && (
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "1px", textTransform: "uppercase", marginBottom: 8 }}>Notes</div>

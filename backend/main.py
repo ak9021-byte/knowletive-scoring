@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from app.routers import students, scores, attendance, interpersonal_skills, project_updates
+from app.routers import students, scores, attendance, interpersonal_skills, project_updates, study_material
 from app.models.student import Student
 from app.models.score import Score
 from app.models.reward import Reward
 from app.models.attendance import Attendance
 from app.models.interpersonal_skill import InterpersonalSkill
+from app.models.study_material import StudyMaterial
 from sqlalchemy import text
 
 
@@ -58,6 +59,8 @@ app.include_router(scores.router)
 app.include_router(attendance.router)
 app.include_router(interpersonal_skills.router)
 app.include_router(project_updates.router)
+app.include_router(study_material.router)
+
 
 @app.get("/")
 def root():
